@@ -16,7 +16,7 @@ resource "aws_s3_bucket" "minute_maker" {
   bucket = var.bucket_name
 
   tags = {
-    Project = "MinuteMaker"
+    Project     = "MinuteMaker"
     Environment = "Dev"
   }
 }
