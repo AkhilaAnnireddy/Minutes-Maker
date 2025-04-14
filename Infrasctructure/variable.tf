@@ -9,3 +9,8 @@ variable "bucket_name" {
   type        = string
   default     = "minute-maker-resources"
 }
+
+variable "lambda_image_uri" {
+  description = "ECR URI for the Whisper Lambda Docker image"
+  type        = string
+}

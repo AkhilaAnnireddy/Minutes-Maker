@@ -1,26 +1,14 @@
-# Use the official AWS Lambda Python 3.11 base image
 FROM public.ecr.aws/lambda/python:3.11
 
-# Set working directory
-WORKDIR /tmp
+# Set the working directory for Lambda to find code and dependencies
+WORKDIR /var/task
 
-# Install system-level dependencies (ffmpeg)
-RUN yum -y update && \
-    yum -y install \
-    ffmpeg \
-    gcc \
-    git \
-    wget \
-    xz && \
-    yum clean all
-
-# Install Python dependencies
+# Install Python dependencies into /var/task
 COPY requirements.txt .
-RUN pip install --upgrade pip && \
-    pip install -r requirements.txt
+RUN pip install -r requirements.txt --target .
 
-# Copy your function code
-COPY . .
+# Copy only the handler code
+COPY main.py .
 
-# Set entry point (lambda handler)
+# Lambda will run this handler function
 CMD ["main.lambda_handler"]

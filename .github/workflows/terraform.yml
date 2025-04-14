@@ -1,48 +1,36 @@
-name: Terraform Deploy
+name: Build & Push Docker to ECR
 
 on:
   push:
     branches:
-      - "**"
-  workflow_dispatch:
+      - main
 
 jobs:
-  terraform:
-    name: Terraform Plan & Apply
+  deploy:
+    name: Build and Push Docker Image
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout Repository
+      - name: Checkout code
         uses: actions/checkout@v3
 
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_version: 1.6.6
-
-      - name: Configure AWS Credentials
+      - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v2
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ secrets.AWS_REGION }}
+          aws-region: us-east-1
 
-      - name: Terraform Init
-        run: terraform init
-        working-directory: Infrasctructure/
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v1
 
-      - name: Terraform Format Check
-        run: terraform fmt -check
-        working-directory: Infrasctructure/
-
-      - name: Terraform Validate
-        run: terraform validate
-        working-directory: Infrasctructure/
-
-      - name: Terraform Plan
-        run: terraform plan
-        working-directory: Infrasctructure/
-
-      - name: Terraform Apply (Auto-approve)
-        run: terraform apply -auto-approve
-        working-directory: Infrasctructure/
+      - name: Build, tag, and push image to ECR
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: whisper-lambda-repo
+          IMAGE_TAG: latest
+        run: |
+          docker build -t $ECR_REPOSITORY:latest ./Backend/Services/VideoTranscriber
+          docker tag $ECR_REPOSITORY:latest $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
