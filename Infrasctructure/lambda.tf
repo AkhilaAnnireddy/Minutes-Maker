@@ -1,32 +1,6 @@
-# ECR Repository
-resource "aws_ecr_repository" "whisper_repo" {
-  name                 = "whisper-lambda-repo"
-  image_tag_mutability = "MUTABLE"
-
-  lifecycle_policy {
-    policy = jsonencode({
-      rules = [
-        {
-          rulePriority = 1,
-          description  = "Expire untagged images older than 7 days",
-          selection    = {
-            tagStatus     = "untagged",
-            countType     = "sinceImagePushed",
-            countUnit     = "days",
-            countNumber   = 7
-          },
-          action = {
-            type = "expire"
-          }
-        }
-      ]
-    })
-  }
-}
-
-# IAM Role for Lambda Execution
-resource "aws_iam_role" "lambda_exec_role" {
-  name = "whisper-lambda-role"
+# IAM Role for video-upload-handler
+resource "aws_iam_role" "video_upload_lambda_exec_role" {
+  name = "video-upload-handler-role"
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17",
@@ -42,16 +16,16 @@ resource "aws_iam_role" "lambda_exec_role" {
   })
 }
 
-# Attach basic logging policy
-resource "aws_iam_role_policy_attachment" "lambda_logging" {
-  role       = aws_iam_role.lambda_exec_role.name
+# Attach basic logging
+resource "aws_iam_role_policy_attachment" "upload_lambda_logging" {
+  role       = aws_iam_role.video_upload_lambda_exec_role.name
   policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
 }
 
-# Attach S3 access policy
-resource "aws_iam_role_policy" "lambda_s3_access" {
-  name = "lambda-s3-access"
-  role = aws_iam_role.lambda_exec_role.id
+# IAM Policy: S3 + SQS Access for Upload Lambda
+resource "aws_iam_role_policy" "upload_lambda_policy" {
+  name = "video-upload-handler-policy"
+  role = aws_iam_role.video_upload_lambda_exec_role.id
 
   policy = jsonencode({
     Version = "2012-10-17",
@@ -59,7 +33,6 @@ resource "aws_iam_role_policy" "lambda_s3_access" {
       {
         Effect = "Allow",
         Action = [
-          "s3:GetObject",
           "s3:PutObject",
           "s3:ListBucket"
         ],
@@ -67,37 +40,45 @@ resource "aws_iam_role_policy" "lambda_s3_access" {
           "arn:aws:s3:::${var.bucket_name}",
           "arn:aws:s3:::${var.bucket_name}/*"
         ]
+      },
+      {
+        Effect = "Allow",
+        Action = [
+          "sqs:SendMessage"
+        ],
+        Resource = var.transcription_queue_arn
       }
     ]
   })
 }
 
-# CloudWatch Log Group
-resource "aws_cloudwatch_log_group" "lambda_logs" {
-  name              = "/aws/lambda/whisper-lambda"
+# CloudWatch Log Group for video-upload-handler
+resource "aws_cloudwatch_log_group" "video_upload_lambda_logs" {
+  name              = "/aws/lambda/video-upload-handler"
   retention_in_days = 7
 }
 
-# Lambda Function from Docker Image
-resource "aws_lambda_function" "whisper_lambda" {
-  function_name = "whisper-lambda"
-  package_type  = "Image"
-  image_uri     = var.lambda_image_uri
-  role          = aws_iam_role.lambda_exec_role.arn
-  timeout       = 300
-  memory_size   = 2048
+# Lambda Function: video-upload-handler
+resource "aws_lambda_function" "video_upload_handler" {
+  function_name = var.video_upload_lambda_name
+  filename      = "${path.module}/lambda/upload_handler.zip"
+  handler       = "main.lambda_handler"
+  runtime       = "python3.11"
+  role          = aws_iam_role.video_upload_lambda_exec_role.arn
+  timeout       = 30
+  memory_size   = 256
+  source_code_hash = filebase64sha256("${path.module}/lambda/upload_handler.zip")
 
   environment {
     variables = {
-      BUCKET_NAME   = var.bucket_name
-      MODEL_PREFIX  = "models/"
-      OUTPUT_PREFIX = "intermediate/"
-      LOG_LEVEL     = "INFO"
+      BUCKET_NAME     = var.bucket_name
+      S3_FOLDER       = "input/"
+      SQS_QUEUE_URL   = var.transcription_queue_url
     }
   }
 
   depends_on = [
-    aws_iam_role_policy.lambda_s3_access,
-    aws_cloudwatch_log_group.lambda_logs
+    aws_iam_role_policy.upload_lambda_policy,
+    aws_cloudwatch_log_group.video_upload_lambda_logs
   ]
 }

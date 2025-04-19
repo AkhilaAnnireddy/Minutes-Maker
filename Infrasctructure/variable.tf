@@ -5,12 +5,23 @@ variable "aws_region" {
 }
 
 variable "bucket_name" {
-  description = "Name of the S3 bucket"
+  description = "Name of the S3 bucket used for video uploads"
   type        = string
   default     = "minute-maker-resources"
 }
 
-variable "lambda_image_uri" {
-  description = "ECR URI for the Whisper Lambda Docker image"
+variable "video_upload_lambda_name" {
+  description = "Name of the Lambda function that uploads videos to S3 and notifies transcriber"
+  type        = string
+  default     = "video-upload-handler"
+}
+
+variable "transcription_queue_url" {
+  description = "URL of the SQS queue that the video uploader sends messages to"
+  type        = string
+}
+
+variable "transcription_queue_arn" {
+  description = "ARN of the SQS queue that the video uploader sends messages to"
   type        = string
 }
