@@ -31,6 +31,7 @@ jobs:
         run: |
           cd Backend/Services/VideoUploader
           zip -r upload_handler.zip .
+          mkdir -p ../../../Infrastructure/lambda
           mv upload_handler.zip ../../../Infrastructure/lambda/upload_handler.zip
 
       - name: Terraform Init
