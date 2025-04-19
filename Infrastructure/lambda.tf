@@ -37,8 +37,8 @@ resource "aws_iam_role_policy" "upload_lambda_policy" {
           "s3:ListBucket"
         ],
         Resource = [
-          "arn:aws:s3:::${var.bucket_name}",
-          "arn:aws:s3:::${var.bucket_name}/*"
+          "arn:aws:s3:::${var.input_bucket_name}",
+          "arn:aws:s3:::${var.input_bucket_name}/*"
         ]
       },
       {
@@ -71,7 +71,7 @@ resource "aws_lambda_function" "video_upload_handler" {
 
 environment {
   variables = {
-    BUCKET_NAME     = var.bucket_name
+    BUCKET_NAME     = var.input_bucket_name
     S3_FOLDER       = "input/"
     SQS_QUEUE_URL   = aws_sqs_queue.video_transcriber_notifier.id
   }

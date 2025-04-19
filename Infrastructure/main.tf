@@ -14,7 +14,7 @@ provider "aws" {
 
 # S3 Bucket for Minute Maker
 resource "aws_s3_bucket" "minute_maker" {
-  bucket = var.bucket_name
+  bucket = var.input_bucket_name
 
   tags = {
     Project     = "MinuteMaker"
@@ -22,14 +22,6 @@ resource "aws_s3_bucket" "minute_maker" {
   }
 }
 
-# Empty folders created as zero-byte objects
-resource "aws_s3_object" "folders" {
-  for_each = toset(["models/", "input/", "intermediate/", "output/"])
-
-  bucket  = aws_s3_bucket.minute_maker.id
-  key     = each.key
-  content = "" # creates a 0-byte object directly
-}
 
 # CloudWatch Log Group
 resource "aws_cloudwatch_log_group" "lambda_logs" {
@@ -77,8 +69,8 @@ resource "aws_iam_role_policy" "lambda_s3_access" {
           "s3:ListBucket"
         ],
         Resource = [
-          "arn:aws:s3:::${var.bucket_name}",
-          "arn:aws:s3:::${var.bucket_name}/*"
+          "arn:aws:s3:::${var.input_bucket_name}",
+          "arn:aws:s3:::${var.input_bucket_name}/*"
         ]
       }
     ]

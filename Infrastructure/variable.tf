@@ -4,10 +4,10 @@ variable "aws_region" {
   default     = "us-east-1"
 }
 
-variable "bucket_name" {
+variable "input_bucket_name" {
   description = "Name of the S3 bucket used for video uploads"
   type        = string
-  default     = "minute-maker-resources"
+  default     = "minute-maker-input"
 }
 
 variable "video_upload_lambda_name" {
