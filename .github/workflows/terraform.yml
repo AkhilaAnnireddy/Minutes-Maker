@@ -92,5 +92,12 @@ jobs:
       - name: Terraform Init
         run: terraform init
 
+      - name: Zip Lambda Code (even for destroy)
+        run: |
+          cd Backend/Services/VideoUploader
+          zip upload_handler.zip main.py
+          mkdir -p ../../../Infrastructure/lambda
+          mv upload_handler.zip ../../../Infrastructure/lambda/
+
       - name: Terraform Destroy (auto-approve)
         run: terraform destroy -auto-approve
