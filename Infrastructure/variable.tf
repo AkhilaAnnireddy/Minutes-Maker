@@ -15,8 +15,3 @@ variable "video_upload_lambda_name" {
   type        = string
   default     = "video-upload-handler"
 }
-
-variable "transcription_queue_url" {
-  description = "URL of the SQS queue that the video uploader sends messages to"
-  type        = string
-}
