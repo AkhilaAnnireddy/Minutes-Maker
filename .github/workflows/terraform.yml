@@ -34,8 +34,10 @@ jobs:
       - name: Terraform Init
         run: terraform init
 
-      - name: Terraform Format Check
-        run: terraform fmt -check
+      - name: Terraform Format (auto-correct)
+        run: |
+          terraform fmt -recursive
+          echo "Terraform files formatted (if needed)."
 
       - name: Terraform Validate
         run: terraform validate

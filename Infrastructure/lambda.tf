@@ -60,20 +60,20 @@ resource "aws_cloudwatch_log_group" "video_upload_lambda_logs" {
 
 # Lambda Function: video-upload-handler
 resource "aws_lambda_function" "video_upload_handler" {
-  function_name = var.video_upload_lambda_name
-  filename      = "${path.module}/lambda/upload_handler.zip"
-  handler       = "main.lambda_handler"
-  runtime       = "python3.11"
-  role          = aws_iam_role.video_upload_lambda_exec_role.arn
-  timeout       = 30
-  memory_size   = 256
+  function_name    = var.video_upload_lambda_name
+  filename         = "${path.module}/lambda/upload_handler.zip"
+  handler          = "main.lambda_handler"
+  runtime          = "python3.11"
+  role             = aws_iam_role.video_upload_lambda_exec_role.arn
+  timeout          = 30
+  memory_size      = 256
   source_code_hash = filebase64sha256("${path.module}/lambda/upload_handler.zip")
 
   environment {
     variables = {
-      BUCKET_NAME     = var.bucket_name
-      S3_FOLDER       = "input/"
-      SQS_QUEUE_URL   = var.transcription_queue_url
+      BUCKET_NAME   = var.bucket_name
+      S3_FOLDER     = "input/"
+      SQS_QUEUE_URL = var.transcription_queue_url
     }
   }
 
