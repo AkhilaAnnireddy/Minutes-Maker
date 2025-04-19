@@ -59,7 +59,10 @@
 name: Destroy Infrastructure via Terraform
 
 on:
-  workflow_dispatch:
+  push:
+    branches:
+      - main
+      - feature/infrastructure
 
 jobs:
   terraform-destroy:
