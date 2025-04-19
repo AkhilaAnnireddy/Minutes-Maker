@@ -2,3 +2,4 @@
 Backend/Services/VideoTranscriber/dependencies
 *.tfstate
 *.tfstate.*
+.terraform.*
