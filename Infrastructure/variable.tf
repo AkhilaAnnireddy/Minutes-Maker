@@ -20,8 +20,3 @@ variable "transcription_queue_url" {
   description = "URL of the SQS queue that the video uploader sends messages to"
   type        = string
 }
-
-variable "transcription_queue_arn" {
-  description = "ARN of the SQS queue that the video uploader sends messages to"
-  type        = string
-}

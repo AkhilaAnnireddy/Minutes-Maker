@@ -46,7 +46,7 @@ resource "aws_iam_role_policy" "upload_lambda_policy" {
         Action = [
           "sqs:SendMessage"
         ],
-        Resource = var.transcription_queue_arn
+        Resource = "${aws_sqs_queue.video_transcriber_notifier.arn}"
       }
     ]
   })
@@ -69,13 +69,13 @@ resource "aws_lambda_function" "video_upload_handler" {
   memory_size      = 256
   source_code_hash = filebase64sha256("${path.module}/lambda/upload_handler.zip")
 
-  environment {
-    variables = {
-      BUCKET_NAME   = var.bucket_name
-      S3_FOLDER     = "input/"
-      SQS_QUEUE_URL = var.transcription_queue_url
-    }
+environment {
+  variables = {
+    BUCKET_NAME     = var.bucket_name
+    S3_FOLDER       = "input/"
+    SQS_QUEUE_URL   = aws_sqs_queue.video_transcriber_notifier.id
   }
+}
 
   depends_on = [
     aws_iam_role_policy.upload_lambda_policy,
