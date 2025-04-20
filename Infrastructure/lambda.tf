@@ -4,7 +4,7 @@ resource "aws_lambda_function" "video_transcriber" {
   role          = aws_iam_role.lambda_transcriber_role.arn
 
   package_type  = "Image"
-  image_uri     = var.ecr_image_uri # e.g., <account>.dkr.ecr.us-east-1.amazonaws.com/minute-maker-video-transcriber:latest
+  image_uri     = var.ecr_image_uri
   timeout       = 900
   memory_size   = 1024
   architectures = ["x86_64"]
@@ -20,7 +20,7 @@ resource "aws_lambda_function" "video_transcriber" {
   }
 }
 
-# IAM Role for Lambda
+# IAM Role for Transcriber Lambda
 resource "aws_iam_role" "lambda_transcriber_role" {
   name = "lambda_transcriber_role"
 
@@ -36,7 +36,7 @@ resource "aws_iam_role" "lambda_transcriber_role" {
   })
 }
 
-# IAM Policy for Lambda Permissions
+# IAM Policy for Transcriber Lambda
 resource "aws_iam_role_policy" "lambda_transcriber_policy" {
   name = "lambda_transcriber_permissions"
   role = aws_iam_role.lambda_transcriber_role.id
@@ -79,20 +79,13 @@ resource "aws_iam_role_policy" "lambda_transcriber_policy" {
   })
 }
 
-# SQS trigger for Lambda
+# SQS trigger for Transcriber Lambda
 resource "aws_lambda_event_source_mapping" "sqs_transcriber_trigger" {
   event_source_arn = aws_sqs_queue.video_transcriber_notifier.arn
   function_name    = aws_lambda_function.video_transcriber.arn
   batch_size       = 1
   enabled          = true
 }
-
-# Required variables
-variable "model_bucket_name" {}
-variable "input_bucket_name" {}
-variable "intermediate_bucket_name" {}
-variable "ecr_image_uri" {}
-variable "video_upload_lambda_name" {}
 
 # IAM Role for video-upload-handler
 resource "aws_iam_role" "video_upload_lambda_exec_role" {
@@ -112,7 +105,7 @@ resource "aws_iam_role" "video_upload_lambda_exec_role" {
   })
 }
 
-# Attach basic logging
+# Attach basic Lambda logging for uploader
 resource "aws_iam_role_policy_attachment" "upload_lambda_logging" {
   role       = aws_iam_role.video_upload_lambda_exec_role.name
   policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
