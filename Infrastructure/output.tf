@@ -32,3 +32,8 @@ output "video_upload_api_endpoint" {
   value = "${aws_apigatewayv2_stage.video_upload_api_stage.invoke_url}/upload"
   description = "API Gateway endpoint for uploading videos"
 }
+
+output "s3_input_bucket_name" {
+  description = "Name of the input S3 bucket"
+  value       = aws_s3_bucket.input_bucket.bucket
+}

@@ -27,3 +27,9 @@ variable "model_bucket_name" {
   type        = string
   default     = "minute-maker-models"
 }
+
+variable "video_upload_lambda_name" {
+  description = "Name of the Lambda function that uploads videos to S3 and notifies SQS"
+  type        = string
+  default     = "video-upload-handler"
+}
