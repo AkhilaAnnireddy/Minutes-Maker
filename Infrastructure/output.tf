@@ -27,3 +27,8 @@ output "summary_generator_queue_url" {
   description = "URL of the SQS queue for summary generation"
   value       = aws_sqs_queue.summary_generator_notifier.id
 }
+
+output "video_upload_api_endpoint" {
+  value = "${aws_apigatewayv2_stage.video_upload_api_stage.invoke_url}/upload"
+  description = "API Gateway endpoint for uploading videos"
+}
