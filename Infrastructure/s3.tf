@@ -41,3 +41,18 @@ resource "aws_s3_bucket" "model_bucket" {
     Environment = "Dev"
   }
 }
+
+# Video Transcriber Models folder placeholder
+resource "aws_s3_object" "video_transcriber_prefix" {
+  bucket  = aws_s3_bucket.model_bucket.bucket
+  key     = "video-transcriber-models/.keep"
+  content = "This is a placeholder to preserve folder structure"
+}
+
+# Summarizer Models folder placeholder
+resource "aws_s3_object" "summarizer_prefix" {
+  bucket  = aws_s3_bucket.model_bucket.bucket
+  key     = "summarizer-models/.keep"
+  content = "This is a placeholder to preserve folder structure"
+}
+

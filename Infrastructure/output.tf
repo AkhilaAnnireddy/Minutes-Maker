@@ -33,3 +33,13 @@ output "video_upload_api_endpoint" {
   description = "API Gateway endpoint for uploading videos"
   value       = "${aws_apigatewayv2_stage.video_upload_api_stage.invoke_url}/upload"
 }
+
+output "video_transcriber_model_prefix" {
+  value       = "s3://${aws_s3_bucket.model_bucket.bucket}/video-transcriber-models/"
+  description = "S3 prefix for video transcriber models"
+}
+
+output "summarizer_model_prefix" {
+  value       = "s3://${aws_s3_bucket.model_bucket.bucket}/summarizer-models/"
+  description = "S3 prefix for summarizer models"
+}
