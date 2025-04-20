@@ -24,7 +24,7 @@ output "video_transcriber_queue_url" {
 
 # Output: Dead Letter Queue for uploader → transcriber
 output "video_transcriber_dlq_url" {
-  description = "URL of the Dead Letter Queue for video transcriber"
+  description = "URL of the Dead Letter Queue for the video transcriber"
   value       = aws_sqs_queue.video_transcriber_notifier_dlq.url
 }
 
@@ -40,12 +40,14 @@ output "video_upload_api_endpoint" {
   value       = "${aws_apigatewayv2_stage.video_upload_api_stage.invoke_url}/upload"
 }
 
+# Output: S3 prefix for video transcriber models
 output "video_transcriber_model_prefix" {
-  value       = "s3://${aws_s3_bucket.model_bucket.bucket}/video-transcriber-models/"
   description = "S3 prefix for video transcriber models"
+  value       = "s3://${aws_s3_bucket.model_bucket.bucket}/video-transcriber-models/"
 }
 
+# Output: S3 prefix for summarizer models
 output "summarizer_model_prefix" {
-  value       = "s3://${aws_s3_bucket.model_bucket.bucket}/summarizer-models/"
   description = "S3 prefix for summarizer models"
-} 
+  value       = "s3://${aws_s3_bucket.model_bucket.bucket}/summarizer-models/"
+}
