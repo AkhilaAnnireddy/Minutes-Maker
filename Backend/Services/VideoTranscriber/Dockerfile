@@ -1,14 +1,19 @@
+# Use AWS Lambda Python 3.11 base image
 FROM public.ecr.aws/lambda/python:3.11
 
-# Set the working directory for Lambda to find code and dependencies
-WORKDIR /var/task
+# Set working directory
+WORKDIR ${LAMBDA_TASK_ROOT}
 
-# Install Python dependencies into /var/task
+# Install Python dependencies into Lambda environment
 COPY requirements.txt .
-RUN pip install -r requirements.txt --target .
+RUN pip3 install --upgrade pip \
+    && pip3 install --no-cache-dir -r requirements.txt --target .
 
-# Copy only the handler code
+# Copy your handler code
 COPY main.py .
 
-# Lambda will run this handler function
+# Set environment variables
+ENV PYTHONPATH="${LAMBDA_TASK_ROOT}"
+
+# Lambda entry point
 CMD ["main.lambda_handler"]

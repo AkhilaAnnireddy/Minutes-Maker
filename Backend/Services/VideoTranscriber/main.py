@@ -1,113 +1,134 @@
 import os
+import json
 import boto3
 import logging
-import subprocess
+import traceback
+import stat
+from pathlib import Path
 from faster_whisper import WhisperModel
 
-# AWS Clients
-s3_client = boto3.client("s3")
-
-# Logger Configuration
+# Setup logging
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
-formatter = logging.Formatter(
-    fmt="%(asctime)s | %(levelname)s | %(message)s",
-    datefmt="%Y-%m-%d %H:%M:%S",
-)
-if not logger.handlers:
-    console = logging.StreamHandler()
-    console.setFormatter(formatter)
-    logger.addHandler(console)
+# AWS Clients
+s3 = boto3.client("s3")
+sqs = boto3.client("sqs")
 
-# Constants
-BUCKET_NAME = "minute-maker-resources"
-INPUT_PREFIX = "input/"
-MODEL_PREFIX = "models/"
-OUTPUT_PREFIX = "intermediate/"
+# Environment Variables
+MODEL_BUCKET = os.environ["MODEL_BUCKET"]
+MODEL_PREFIX = os.environ.get("MODEL_PREFIX", "video-transcriber-models/")
+VIDEO_BUCKET = os.environ["VIDEO_BUCKET"]
+INTERMEDIATE_BUCKET = os.environ["INTERMEDIATE_BUCKET"]
+SQS_SUMMARIZER_QUEUE_URL = os.environ["SQS_SUMMARIZER_QUEUE_URL"]
 TMP_DIR = "/tmp"
-MODEL_DIR = os.path.join(TMP_DIR, "faster-whisper")
-FFMPEG_PATH = os.path.join(MODEL_DIR, "ffmpeg")
 
+# ----------------- Utility Functions --------------------
 
-def download_from_s3(prefix, local_dir):
-    logger.info(f"Starting download from s3://{BUCKET_NAME}/{prefix} to {local_dir}")
-    paginator = s3_client.get_paginator("list_objects_v2")
-    for page in paginator.paginate(Bucket=BUCKET_NAME, Prefix=prefix):
+def download_from_s3(bucket, key, local_path):
+    """Download a file from S3 to local path"""
+    logger.info(f"Downloading s3://{bucket}/{key} → {local_path}")
+    Path(local_path).parent.mkdir(parents=True, exist_ok=True)
+    s3.download_file(bucket, key, local_path)
+    logger.info(f"Downloaded {key} to {local_path}")
+
+def upload_to_s3(bucket, key, local_path):
+    """Upload a local file to S3"""
+    logger.info(f"Uploading {local_path} → s3://{bucket}/{key}")
+    s3.upload_file(local_path, bucket, key)
+    logger.info("Upload complete.")
+
+def load_dependencies_to_tmp():
+    """
+    Downloads all dependencies (Whisper model + ffmpeg) from S3 to /tmp,
+    makes ffmpeg executable, and adds the model path to PATH.
+    """
+    local_root = os.path.join(TMP_DIR, "video-transcriber-models")
+
+    logger.info("Downloading dependencies from S3...")
+    paginator = s3.get_paginator("list_objects_v2")
+    for page in paginator.paginate(Bucket=MODEL_BUCKET, Prefix=MODEL_PREFIX):
         for obj in page.get("Contents", []):
             key = obj["Key"]
-            if key.endswith("/"):
-                continue  # skip folders
-            local_path = os.path.join(local_dir, os.path.relpath(key, prefix))
-            os.makedirs(os.path.dirname(local_path), exist_ok=True)
-            s3_client.download_file(BUCKET_NAME, key, local_path)
-            logger.info(f"Downloaded: {key} to {local_path}")
-    logger.info("Model and dependencies downloaded successfully.")
+            relative_path = key.replace(MODEL_PREFIX, "")
+            if not relative_path:
+                continue
+            local_file = os.path.join(local_root, relative_path)
+            download_from_s3(MODEL_BUCKET, key, local_file)
 
+            # Make ffmpeg executable
+            if relative_path == "ffmpeg":
+                logger.info("Making ffmpeg executable")
+                os.chmod(local_file, os.stat(local_file).st_mode | stat.S_IEXEC)
 
-def ensure_ffmpeg(model_dir):
-    ffmpeg_exec = os.path.join(model_dir, "ffmpeg")
-    if not os.path.isfile(ffmpeg_exec):
-        logger.error("FFmpeg binary not found in model directory.")
-        raise FileNotFoundError("FFmpeg binary not found.")
-    os.chmod(ffmpeg_exec, 0o755)
-    os.environ["PATH"] = f"{model_dir}:{os.environ['PATH']}"
-    logger.info("FFmpeg setup completed and executable path updated.")
+    os.environ["PATH"] = f"{local_root}:{os.environ['PATH']}"
+    logger.info("Updated PATH for ffmpeg: %s", local_root)
 
+    return local_root
+
+def transcribe_audio(model, audio_path):
+    """Runs Faster-Whisper transcription"""
+    logger.info("Running transcription with Whisper...")
+    segments, _ = model.transcribe(audio_path)
+    transcript = "\n".join([segment.text for segment in segments])
+    logger.info("Transcription complete.")
+    return transcript
+
+# ----------------- Lambda Handler --------------------
 
 def lambda_handler(event, context):
-    input_path = ""
-    output_path = ""
+    logger.info("Lambda triggered with event: %s", json.dumps(event))
+
     try:
-        logger.info("Lambda execution started.")
+        for record in event["Records"]:
+            body = json.loads(record["body"])
+            video_key = body["s3_key"]
+            video_filename = os.path.basename(video_key)
+            base_name = video_filename.rsplit(".", 1)[0]
 
-        # 1. Parse S3 event
-        key = event['Records'][0]['s3']['object']['key']
-        logger.info(f"Triggered by file: {key}")
+            video_path = os.path.join(TMP_DIR, video_filename)
+            transcript_path = os.path.join(TMP_DIR, f"{base_name}.txt")
+            transcript_key = f"{base_name}.txt"
 
-        if not key.startswith(INPUT_PREFIX):
-            logger.warning("Event file not in input/ folder. Ignoring.")
-            return
+            # Step 1: Download video from S3
+            download_from_s3(VIDEO_BUCKET, video_key, video_path)
 
-        file_name = os.path.basename(key)
-        input_path = os.path.join(TMP_DIR, file_name)
+            # Step 2: Download Whisper + ffmpeg from S3 and prepare environment
+            model_path = load_dependencies_to_tmp()
 
-        # 2. Download input video
-        logger.info("Downloading video file...")
-        s3_client.download_file(BUCKET_NAME, key, input_path)
-        logger.info(f"Downloaded video: {input_path}")
+            # Step 3: Load Whisper model
+            model = WhisperModel(model_path, compute_type="int8")
 
-        # 3. Download model and ffmpeg from S3
-        download_from_s3(MODEL_PREFIX, MODEL_DIR)
+            # Step 4: Transcribe video
+            transcript_text = transcribe_audio(model, video_path)
+            with open(transcript_path, "w") as f:
+                f.write(transcript_text)
 
-        # 4. Setup FFmpeg
-        ensure_ffmpeg(MODEL_DIR)
+            # Step 5: Upload transcript to intermediate bucket
+            upload_to_s3(INTERMEDIATE_BUCKET, transcript_key, transcript_path)
 
-        # 5. Transcribe
-        logger.info("Starting transcription with Faster-Whisper...")
-        model = WhisperModel(MODEL_DIR, compute_type="int8")
-        segments, _ = model.transcribe(input_path)
+            # Step 6: Send transcript location to summarizer SQS queue
+            message = {
+                "transcript_key": transcript_key,
+                "intermediate_bucket": INTERMEDIATE_BUCKET
+            }
 
-        transcript = "\n".join([f"{seg.start:.2f}-{seg.end:.2f}: {seg.text}" for seg in segments])
-        output_file_name = f"{os.path.splitext(file_name)[0]}.txt"
-        output_path = os.path.join(TMP_DIR, output_file_name)
+            sqs.send_message(
+                QueueUrl=SQS_SUMMARIZER_QUEUE_URL,
+                MessageBody=json.dumps(message)
+            )
 
-        with open(output_path, "w") as f:
-            f.write(transcript)
+            logger.info("Transcription successful and message sent to summarizer queue: %s", message)
 
-        # 6. Upload transcript
-        output_key = f"{OUTPUT_PREFIX}{output_file_name}"
-        logger.info(f"Uploading transcript to s3://{BUCKET_NAME}/{output_key}")
-        s3_client.upload_file(output_path, BUCKET_NAME, output_key)
-        logger.info("Transcript successfully uploaded.")
+        return {
+            "statusCode": 200,
+            "body": json.dumps({"message": "Transcription and SQS notification complete."})
+        }
 
     except Exception as e:
-        logger.error(f"Exception occurred: {e}", exc_info=True)
-    finally:
-        # 7. Cleanup temp files
-        for path in [input_path, output_path, MODEL_DIR]:
-            if os.path.exists(path):
-                subprocess.call(["rm", "-rf", path])
-                logger.info(f"Cleaned: {path}")
-
-        logger.info("Lambda execution completed.")
+        logger.error("An error occurred during processing: %s", str(e))
+        logger.error(traceback.format_exc())
+        return {
+            "statusCode": 500,
+            "body": json.dumps({"error": str(e)})
+        }
