@@ -1,0 +1,57 @@
+name: Deploy Infrastructure via Terraform
+
+on:
+  push:
+    branches:
+      - main
+      - feature/infrastructure
+
+jobs:
+  terraform-deploy:
+    name: Zip Lambda & Terraform Init, Validate & Apply
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: 1.3.0
+
+      - name: Zip video-upload-handler Lambda
+        run: |
+          cd Backend/Services/VideoUploader
+          zip -r upload_handler.zip .
+          mkdir -p ../../../Infrastructure/lambda
+          mv upload_handler.zip ../../../Infrastructure/lambda/upload_handler.zip
+
+      - name: Terraform Init
+        working-directory: ./Infrastructure
+        run: terraform init
+
+      - name: Terraform Format (auto-correct)
+        working-directory: ./Infrastructure
+        run: |
+          terraform fmt -recursive
+          echo "Terraform files formatted (if needed)."
+
+      - name: Terraform Validate
+        working-directory: ./Infrastructure
+        run: terraform validate
+
+      - name: Terraform Plan
+        working-directory: ./Infrastructure
+        run: terraform plan
+
+      - name: Terraform Apply (auto-approve)
+        working-directory: ./Infrastructure
+        run: terraform apply -auto-approve

@@ -1,0 +1,5 @@
+.terraform
+Backend/Services/VideoTranscriber/dependencies
+*.tfstate
+*.tfstate.*
+.terraform.*
