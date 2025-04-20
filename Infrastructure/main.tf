@@ -11,13 +11,3 @@ terraform {
 provider "aws" {
   region = var.aws_region
 }
-
-# S3 Bucket for Minute Maker (input bucket)
-resource "aws_s3_bucket" "minute_maker" {
-  bucket = var.input_bucket_name
-
-  tags = {
-    Project     = "MinuteMaker"
-    Environment = "Dev"
-  }
-}

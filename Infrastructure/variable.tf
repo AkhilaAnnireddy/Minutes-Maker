@@ -5,13 +5,25 @@ variable "aws_region" {
 }
 
 variable "input_bucket_name" {
-  description = "Name of the S3 bucket used for video uploads"
+  description = "S3 bucket for uploaded videos"
   type        = string
   default     = "minute-maker-input"
 }
 
-variable "video_upload_lambda_name" {
-  description = "Name of the Lambda function that uploads videos to S3 and notifies transcriber"
+variable "intermediate_bucket_name" {
+  description = "S3 bucket for intermediate data (audio, transcripts)"
   type        = string
-  default     = "video-upload-handler"
+  default     = "minute-maker-intermediate"
+}
+
+variable "output_bucket_name" {
+  description = "S3 bucket for final meeting minutes"
+  type        = string
+  default     = "minute-maker-output"
+}
+
+variable "model_bucket_name" {
+  description = "S3 bucket for ML models (Whisper, BERT)"
+  type        = string
+  default     = "minute-maker-models"
 }
