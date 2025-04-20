@@ -1,3 +1,99 @@
+# Lambda definition for video transcriber using Docker image
+resource "aws_lambda_function" "video_transcriber" {
+  function_name = "video-transcriber"
+  role          = aws_iam_role.lambda_transcriber_role.arn
+
+  package_type  = "Image"
+  image_uri     = var.ecr_image_uri # e.g., <account>.dkr.ecr.us-east-1.amazonaws.com/minute-maker-video-transcriber:latest
+  timeout       = 900
+  memory_size   = 1024
+  architectures = ["x86_64"]
+
+  environment {
+    variables = {
+      MODEL_BUCKET               = var.model_bucket_name
+      MODEL_PREFIX               = "video-transcriber-models/"
+      VIDEO_BUCKET               = var.input_bucket_name
+      INTERMEDIATE_BUCKET        = var.intermediate_bucket_name
+      SQS_SUMMARIZER_QUEUE_URL   = aws_sqs_queue.summary_generator_notifier.id
+    }
+  }
+}
+
+# IAM Role for Lambda
+resource "aws_iam_role" "lambda_transcriber_role" {
+  name = "lambda_transcriber_role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [{
+      Effect = "Allow",
+      Principal = {
+        Service = "lambda.amazonaws.com"
+      },
+      Action = "sts:AssumeRole"
+    }]
+  })
+}
+
+# IAM Policy for Lambda Permissions
+resource "aws_iam_role_policy" "lambda_transcriber_policy" {
+  name = "lambda_transcriber_permissions"
+  role = aws_iam_role.lambda_transcriber_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [
+      {
+        Effect = "Allow",
+        Action = [
+          "logs:CreateLogGroup",
+          "logs:CreateLogStream",
+          "logs:PutLogEvents"
+        ],
+        Resource = "arn:aws:logs:*:*:*"
+      },
+      {
+        Effect = "Allow",
+        Action = [
+          "s3:GetObject",
+          "s3:PutObject"
+        ],
+        Resource = [
+          "arn:aws:s3:::${var.model_bucket_name}/*",
+          "arn:aws:s3:::${var.input_bucket_name}/*",
+          "arn:aws:s3:::${var.intermediate_bucket_name}/*"
+        ]
+      },
+      {
+        Effect = "Allow",
+        Action = ["sqs:SendMessage"],
+        Resource = aws_sqs_queue.summary_generator_notifier.arn
+      },
+      {
+        Effect = "Allow",
+        Action = ["sqs:ReceiveMessage", "sqs:DeleteMessage", "sqs:GetQueueAttributes"],
+        Resource = aws_sqs_queue.video_transcriber_notifier.arn
+      }
+    ]
+  })
+}
+
+# SQS trigger for Lambda
+resource "aws_lambda_event_source_mapping" "sqs_transcriber_trigger" {
+  event_source_arn = aws_sqs_queue.video_transcriber_notifier.arn
+  function_name    = aws_lambda_function.video_transcriber.arn
+  batch_size       = 1
+  enabled          = true
+}
+
+# Required variables
+variable "model_bucket_name" {}
+variable "input_bucket_name" {}
+variable "intermediate_bucket_name" {}
+variable "ecr_image_uri" {}
+variable "video_upload_lambda_name" {}
+
 # IAM Role for video-upload-handler
 resource "aws_iam_role" "video_upload_lambda_exec_role" {
   name = "video-upload-handler-role"
@@ -46,7 +142,7 @@ resource "aws_iam_role_policy" "upload_lambda_policy" {
         Action = [
           "sqs:SendMessage"
         ],
-        Resource = "${aws_sqs_queue.video_transcriber_notifier.arn}"
+        Resource = aws_sqs_queue.video_transcriber_notifier.arn
       }
     ]
   })
@@ -69,13 +165,13 @@ resource "aws_lambda_function" "video_upload_handler" {
   memory_size      = 256
   source_code_hash = filebase64sha256("${path.module}/lambda/upload_handler.zip")
 
-environment {
-  variables = {
-    BUCKET_NAME     = var.input_bucket_name
-    S3_FOLDER       = "input/"
-    SQS_QUEUE_URL   = aws_sqs_queue.video_transcriber_notifier.id
+  environment {
+    variables = {
+      BUCKET_NAME     = var.input_bucket_name
+      S3_FOLDER       = "input/"
+      SQS_QUEUE_URL   = aws_sqs_queue.video_transcriber_notifier.id
+    }
   }
-}
 
   depends_on = [
     aws_iam_role_policy.upload_lambda_policy,
