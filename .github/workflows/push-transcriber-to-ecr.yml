@@ -1,4 +1,4 @@
-name: Build and Push Transcriber Lambda to ECR
+name: Build, Push Docker Image, and Deploy Terraform
 
 on:
   push:
@@ -9,8 +9,8 @@ on:
       - "Backend/Services/VideoTranscriber/**"
 
 jobs:
-  build-and-push:
-    name: Build and Push Docker Image
+  build-push-and-deploy:
+    name: Build Docker Image, Push to ECR & Terraform Apply
     runs-on: ubuntu-latest
 
     env:
@@ -44,3 +44,31 @@ jobs:
       - name: Push Docker image to ECR
         run: |
           docker push ${{ steps.login-ecr.outputs.registry }}/$ECR_REPO:$IMAGE_TAG
+
+      # Terraform Steps (After Pushing Docker Image)
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: 1.3.0
+
+      - name: Terraform Init
+        working-directory: ./Infrastructure
+        run: terraform init
+
+      - name: Terraform Format (auto-correct)
+        working-directory: ./Infrastructure
+        run: |
+          terraform fmt -recursive
+          echo "Terraform files formatted (if needed)."
+
+      - name: Terraform Validate
+        working-directory: ./Infrastructure
+        run: terraform validate
+
+      - name: Terraform Plan
+        working-directory: ./Infrastructure
+        run: terraform plan
+
+      - name: Terraform Apply (auto-approve)
+        working-directory: ./Infrastructure
+        run: terraform apply -auto-approve
