@@ -38,3 +38,9 @@ variable "ecr_image_uri" {
   description = "ECR image URI for video transcriber Lambda Docker deployment"
   type        = string
 }
+
+variable "image_tag" {
+  description = "Docker image tag for the video transcriber (like latest, v1, v2)"
+  type        = string
+  default     = "latest"
+}

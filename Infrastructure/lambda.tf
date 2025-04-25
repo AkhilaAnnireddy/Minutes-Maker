@@ -4,7 +4,7 @@ resource "aws_lambda_function" "video_transcriber" {
   role          = aws_iam_role.lambda_transcriber_role.arn
 
   package_type  = "Image"
-  image_uri     = var.ecr_image_uri
+  image_uri = "${var.ecr_image_uri}:${var.image_tag}"
   timeout       = 900
   memory_size   = 1024
   architectures = ["x86_64"]

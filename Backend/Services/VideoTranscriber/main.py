@@ -18,7 +18,6 @@ sqs = boto3.client("sqs")
 # Environment Variables
 MODEL_BUCKET = os.environ["MODEL_BUCKET"]
 MODEL_PREFIX = os.environ.get("MODEL_PREFIX", "video-transcriber-models/")
-VIDEO_BUCKET = os.environ["VIDEO_BUCKET"]
 INTERMEDIATE_BUCKET = os.environ["INTERMEDIATE_BUCKET"]
 SQS_SUMMARIZER_QUEUE_URL = os.environ["SQS_SUMMARIZER_QUEUE_URL"]
 TMP_DIR = "/tmp"
@@ -41,7 +40,7 @@ def upload_to_s3(bucket, key, local_path):
 def load_dependencies_to_tmp():
     """
     Downloads all dependencies (Whisper model + ffmpeg) from S3 to /tmp,
-    makes ffmpeg executable, and adds the model path to PATH.
+    makes ffmpeg executable, and updates PATH.
     """
     local_root = os.path.join(TMP_DIR, "video-transcriber-models")
 
@@ -82,7 +81,9 @@ def lambda_handler(event, context):
     try:
         for record in event["Records"]:
             body = json.loads(record["body"])
-            video_key = body["s3_key"]
+            video_bucket = body["bucket"]
+            video_key = body["key"]
+
             video_filename = os.path.basename(video_key)
             base_name = video_filename.rsplit(".", 1)[0]
 
@@ -91,9 +92,9 @@ def lambda_handler(event, context):
             transcript_key = f"{base_name}.txt"
 
             # Step 1: Download video from S3
-            download_from_s3(VIDEO_BUCKET, video_key, video_path)
+            download_from_s3(video_bucket, video_key, video_path)
 
-            # Step 2: Download Whisper + ffmpeg from S3 and prepare environment
+            # Step 2: Download Whisper + ffmpeg from S3
             model_path = load_dependencies_to_tmp()
 
             # Step 3: Load Whisper model
@@ -101,13 +102,15 @@ def lambda_handler(event, context):
 
             # Step 4: Transcribe video
             transcript_text = transcribe_audio(model, video_path)
+
+            # Step 5: Save transcript to /tmp
             with open(transcript_path, "w") as f:
                 f.write(transcript_text)
 
-            # Step 5: Upload transcript to intermediate bucket
+            # Step 6: Upload transcript to intermediate S3 bucket
             upload_to_s3(INTERMEDIATE_BUCKET, transcript_key, transcript_path)
 
-            # Step 6: Send transcript location to summarizer SQS queue
+            # Step 7: Notify summarizer through SQS
             message = {
                 "transcript_key": transcript_key,
                 "intermediate_bucket": INTERMEDIATE_BUCKET
@@ -118,7 +121,7 @@ def lambda_handler(event, context):
                 MessageBody=json.dumps(message)
             )
 
-            logger.info("Transcription successful and message sent to summarizer queue: %s", message)
+            logger.info("Successfully sent transcript info to summarizer queue: %s", message)
 
         return {
             "statusCode": 200,
