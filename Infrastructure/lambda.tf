@@ -123,7 +123,8 @@ resource "aws_iam_role_policy" "upload_lambda_policy" {
         Effect = "Allow",
         Action = [
           "s3:PutObject",
-          "s3:ListBucket"
+          "s3:ListBucket",
+          "s3:GetObject" 
         ],
         Resource = [
           "arn:aws:s3:::${var.input_bucket_name}",
