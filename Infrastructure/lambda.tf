@@ -1,10 +1,16 @@
-# Lambda definition for video transcriber using Docker image
+# --- Pull the latest ECR image digest ---
+data "aws_ecr_image" "video_transcriber_image" {
+  repository_name = "minute-maker-video-transcriber"
+  image_tag       = var.image_tag
+}
+
+# --- Lambda definition for video transcriber using Docker image ---
 resource "aws_lambda_function" "video_transcriber" {
   function_name = "video-transcriber"
   role          = aws_iam_role.lambda_transcriber_role.arn
 
   package_type  = "Image"
-  image_uri = "${var.ecr_image_uri}:${var.image_tag}"
+  image_uri     = "${var.ecr_image_uri}@${data.aws_ecr_image.video_transcriber_image.image_digest}"
   timeout       = 900
   memory_size   = 1024
   architectures = ["x86_64"]
@@ -18,9 +24,11 @@ resource "aws_lambda_function" "video_transcriber" {
       SQS_SUMMARIZER_QUEUE_URL   = aws_sqs_queue.summary_generator_notifier.id
     }
   }
+
+  depends_on = [data.aws_ecr_image.video_transcriber_image]
 }
 
-# IAM Role for Transcriber Lambda
+# --- IAM Role for Transcriber Lambda ---
 resource "aws_iam_role" "lambda_transcriber_role" {
   name = "lambda_transcriber_role"
 
@@ -36,7 +44,7 @@ resource "aws_iam_role" "lambda_transcriber_role" {
   })
 }
 
-# IAM Policy for Transcriber Lambda
+# --- IAM Policy for Transcriber Lambda ---
 resource "aws_iam_role_policy" "lambda_transcriber_policy" {
   name = "lambda_transcriber_permissions"
   role = aws_iam_role.lambda_transcriber_role.id
@@ -79,7 +87,7 @@ resource "aws_iam_role_policy" "lambda_transcriber_policy" {
   })
 }
 
-# SQS trigger for Transcriber Lambda
+# --- SQS trigger for Transcriber Lambda ---
 resource "aws_lambda_event_source_mapping" "sqs_transcriber_trigger" {
   event_source_arn = aws_sqs_queue.video_transcriber_notifier.arn
   function_name    = aws_lambda_function.video_transcriber.arn
@@ -87,31 +95,29 @@ resource "aws_lambda_event_source_mapping" "sqs_transcriber_trigger" {
   enabled          = true
 }
 
-# IAM Role for video-upload-handler
+# --- IAM Role for video-upload-handler ---
 resource "aws_iam_role" "video_upload_lambda_exec_role" {
   name = "video-upload-handler-role"
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17",
-    Statement = [
-      {
-        Effect = "Allow",
-        Principal = {
-          Service = "lambda.amazonaws.com"
-        },
-        Action = "sts:AssumeRole"
-      }
-    ]
+    Statement = [{
+      Effect = "Allow",
+      Principal = {
+        Service = "lambda.amazonaws.com"
+      },
+      Action = "sts:AssumeRole"
+    }]
   })
 }
 
-# Attach basic Lambda logging for uploader
+# --- Attach basic Lambda logging for uploader ---
 resource "aws_iam_role_policy_attachment" "upload_lambda_logging" {
   role       = aws_iam_role.video_upload_lambda_exec_role.name
   policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
 }
 
-# IAM Policy: S3 + SQS Access for Upload Lambda
+# --- IAM Policy: S3 + SQS Access for Upload Lambda ---
 resource "aws_iam_role_policy" "upload_lambda_policy" {
   name = "video-upload-handler-policy"
   role = aws_iam_role.video_upload_lambda_exec_role.id
@@ -124,7 +130,7 @@ resource "aws_iam_role_policy" "upload_lambda_policy" {
         Action = [
           "s3:PutObject",
           "s3:ListBucket",
-          "s3:GetObject" 
+          "s3:GetObject"
         ],
         Resource = [
           "arn:aws:s3:::${var.input_bucket_name}",
@@ -133,22 +139,20 @@ resource "aws_iam_role_policy" "upload_lambda_policy" {
       },
       {
         Effect = "Allow",
-        Action = [
-          "sqs:SendMessage"
-        ],
+        Action = ["sqs:SendMessage"],
         Resource = aws_sqs_queue.video_transcriber_notifier.arn
       }
     ]
   })
 }
 
-# CloudWatch Log Group for video-upload-handler
+# --- CloudWatch Log Group for video-upload-handler ---
 resource "aws_cloudwatch_log_group" "video_upload_lambda_logs" {
   name              = "/aws/lambda/video-upload-handler"
   retention_in_days = 7
 }
 
-# Lambda Function: video-upload-handler
+# --- Lambda Function: video-upload-handler ---
 resource "aws_lambda_function" "video_upload_handler" {
   function_name    = var.video_upload_lambda_name
   filename         = "${path.module}/lambda/upload_handler.zip"
