@@ -64,6 +64,15 @@ resource "aws_iam_role_policy" "lambda_transcriber_policy" {
       {
         Effect = "Allow",
         Action = [
+          "s3:ListBucket"
+        ],
+        Resource = [
+          "arn:aws:s3:::${var.model_bucket_name}"
+        ]
+      },
+      {
+        Effect = "Allow",
+        Action = [
           "s3:GetObject",
           "s3:PutObject"
         ],
@@ -80,7 +89,11 @@ resource "aws_iam_role_policy" "lambda_transcriber_policy" {
       },
       {
         Effect = "Allow",
-        Action = ["sqs:ReceiveMessage", "sqs:DeleteMessage", "sqs:GetQueueAttributes"],
+        Action = [
+          "sqs:ReceiveMessage",
+          "sqs:DeleteMessage",
+          "sqs:GetQueueAttributes"
+        ],
         Resource = aws_sqs_queue.video_transcriber_notifier.arn
       }
     ]
