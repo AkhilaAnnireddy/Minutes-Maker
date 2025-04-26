@@ -1,6 +1,12 @@
-# --- Pull the latest ECR image digest ---
+# --- Pull the latest ECR image digest for Transcriber ---
 data "aws_ecr_image" "video_transcriber_image" {
   repository_name = "minute-maker-video-transcriber"
+  image_tag       = var.image_tag
+}
+
+# --- Pull the latest ECR image digest for Summarizer ---
+data "aws_ecr_image" "summarizer_image" {
+  repository_name = "minute-maker-summarizer"
   image_tag       = var.image_tag
 }
 
@@ -46,7 +52,7 @@ resource "aws_iam_role" "lambda_transcriber_role" {
 
 # --- IAM Policy for Transcriber Lambda ---
 resource "aws_iam_role_policy" "lambda_transcriber_policy" {
-  name = "lambda_transcriber_permissions"
+  name = "lambda-transcriber-permissions"
   role = aws_iam_role.lambda_transcriber_role.id
 
   policy = jsonencode({
@@ -54,28 +60,17 @@ resource "aws_iam_role_policy" "lambda_transcriber_policy" {
     Statement = [
       {
         Effect = "Allow",
-        Action = [
-          "logs:CreateLogGroup",
-          "logs:CreateLogStream",
-          "logs:PutLogEvents"
-        ],
+        Action = ["logs:CreateLogGroup", "logs:CreateLogStream", "logs:PutLogEvents"],
         Resource = "arn:aws:logs:*:*:*"
       },
       {
         Effect = "Allow",
-        Action = [
-          "s3:ListBucket"
-        ],
-        Resource = [
-          "arn:aws:s3:::${var.model_bucket_name}"
-        ]
+        Action = ["s3:ListBucket"],
+        Resource = ["arn:aws:s3:::${var.model_bucket_name}"]
       },
       {
         Effect = "Allow",
-        Action = [
-          "s3:GetObject",
-          "s3:PutObject"
-        ],
+        Action = ["s3:GetObject", "s3:PutObject"],
         Resource = [
           "arn:aws:s3:::${var.model_bucket_name}/*",
           "arn:aws:s3:::${var.input_bucket_name}/*",
@@ -89,11 +84,7 @@ resource "aws_iam_role_policy" "lambda_transcriber_policy" {
       },
       {
         Effect = "Allow",
-        Action = [
-          "sqs:ReceiveMessage",
-          "sqs:DeleteMessage",
-          "sqs:GetQueueAttributes"
-        ],
+        Action = ["sqs:ReceiveMessage", "sqs:DeleteMessage", "sqs:GetQueueAttributes"],
         Resource = aws_sqs_queue.video_transcriber_notifier.arn
       }
     ]
@@ -140,11 +131,7 @@ resource "aws_iam_role_policy" "upload_lambda_policy" {
     Statement = [
       {
         Effect = "Allow",
-        Action = [
-          "s3:PutObject",
-          "s3:ListBucket",
-          "s3:GetObject"
-        ],
+        Action = ["s3:PutObject", "s3:ListBucket", "s3:GetObject"],
         Resource = [
           "arn:aws:s3:::${var.input_bucket_name}",
           "arn:aws:s3:::${var.input_bucket_name}/*"
