@@ -44,3 +44,14 @@ variable "image_tag" {
   type        = string
   default     = "latest"
 }
+
+variable "summarizer_ecr_image_uri" {
+  description = "ECR image URI for summarizer Lambda Docker deployment"
+  type        = string
+}
+
+variable "image_tag" {
+  description = "Tag of the Docker images"
+  type        = string
+  default     = "latest"
+}
