@@ -45,13 +45,12 @@ resource "aws_lambda_function" "summarizer_lambda" {
 
   package_type  = "Image"
   image_uri     = "${var.summarizer_ecr_image_uri}@${data.aws_ecr_image.summarizer_image.image_digest}"
-  
   timeout       = 900
-  memory_size   = 6144 
+  memory_size   = 3008    # Max possible
   architectures = ["x86_64"]
 
   ephemeral_storage {
-    size = 2048        
+    size = 10240
   }
 
   environment {
@@ -67,38 +66,6 @@ resource "aws_lambda_function" "summarizer_lambda" {
   depends_on = [data.aws_ecr_image.summarizer_image]
 }
 
-
-# --- IAM Role for Transcriber Lambda ---
-resource "aws_iam_role" "lambda_transcriber_role" {
-  name = "lambda_transcriber_role"
-
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17",
-    Statement = [{
-      Effect = "Allow",
-      Principal = {
-        Service = "lambda.amazonaws.com"
-      },
-      Action = "sts:AssumeRole"
-    }]
-  })
-}
-
-# --- IAM Role for Summarizer Lambda ---
-resource "aws_iam_role" "summarizer_lambda_exec_role" {
-  name = "summarizer-lambda-exec-role"
-
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17",
-    Statement = [{
-      Effect = "Allow",
-      Principal = {
-        Service = "lambda.amazonaws.com"
-      },
-      Action = "sts:AssumeRole"
-    }]
-  })
-}
 
 # --- IAM Policy for Transcriber Lambda ---
 resource "aws_iam_role_policy" "lambda_transcriber_policy" {
