@@ -7,11 +7,6 @@ data "aws_ecr_image" "video_transcriber_image" {
   image_tag       = var.video_transcriber_image_tag
 }
 
-data "aws_ecr_image" "summarizer_image" {
-  repository_name = "minute-maker-summarizer"
-  image_tag       = var.summarizer_image_tag
-}
-
 ##############################################
 # --- Lambda: Video Uploader
 ##############################################
@@ -174,83 +169,3 @@ resource "aws_lambda_event_source_mapping" "sqs_transcriber_trigger" {
   enabled          = true
 }
 
-##############################################
-# --- Lambda: Summarizer
-##############################################
-
-resource "aws_lambda_function" "summarizer_lambda" {
-  function_name = "summarizer"
-  role          = aws_iam_role.summarizer_lambda_role.arn
-
-  package_type  = "Image"
-  image_uri     = "${var.summarizer_ecr_image_uri}@${data.aws_ecr_image.summarizer_image.image_digest}"
-  timeout       = 900
-  memory_size   = 1024
-  architectures = ["x86_64"]
-
-  environment {
-    variables = {
-      MODEL_BUCKET        = var.model_bucket_name
-      MODEL_PREFIX        = "summarizer-models/"
-      INTERMEDIATE_BUCKET = var.intermediate_bucket_name
-      OUTPUT_BUCKET       = var.output_bucket_name
-    }
-  }
-
-  depends_on = [data.aws_ecr_image.summarizer_image]
-}
-
-resource "aws_iam_role" "summarizer_lambda_role" {
-  name = "summarizer-role"
-
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17",
-    Statement = [{
-      Effect = "Allow",
-      Principal = { Service = "lambda.amazonaws.com" },
-      Action    = "sts:AssumeRole"
-    }]
-  })
-}
-
-resource "aws_iam_role_policy" "summarizer_lambda_policy" {
-  name = "summarizer-permissions"
-  role = aws_iam_role.summarizer_lambda_role.id
-
-  policy = jsonencode({
-    Version = "2012-10-17",
-    Statement = [
-      {
-        Effect = "Allow",
-        Action = ["logs:CreateLogGroup", "logs:CreateLogStream", "logs:PutLogEvents"],
-        Resource = "arn:aws:logs:*:*:*"
-      },
-      {
-        Effect = "Allow",
-        Action = ["s3:ListBucket"],
-        Resource = ["arn:aws:s3:::${var.model_bucket_name}"]
-      },
-      {
-        Effect = "Allow",
-        Action = ["s3:GetObject", "s3:PutObject"],
-        Resource = [
-          "arn:aws:s3:::${var.model_bucket_name}/*",
-          "arn:aws:s3:::${var.intermediate_bucket_name}/*",
-          "arn:aws:s3:::${var.output_bucket_name}/*"
-        ]
-      },
-      {
-        Effect = "Allow",
-        Action = ["sqs:ReceiveMessage", "sqs:DeleteMessage", "sqs:GetQueueAttributes"],
-        Resource = aws_sqs_queue.summary_generator_notifier.arn
-      }
-    ]
-  })
-}
-
-resource "aws_lambda_event_source_mapping" "sqs_summarizer_trigger" {
-  event_source_arn = aws_sqs_queue.summary_generator_notifier.arn
-  function_name    = aws_lambda_function.summarizer_lambda.arn
-  batch_size       = 1
-  enabled          = true
-}

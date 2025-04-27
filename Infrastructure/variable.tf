@@ -52,13 +52,3 @@ variable "video_transcriber_image_tag" {
   default     = "latest"
 }
 
-variable "summarizer_ecr_image_uri" {
-  description = "ECR image URI for summarizer Lambda"
-  type        = string
-}
-
-variable "summarizer_image_tag" {
-  description = "Docker image tag for summarizer"
-  type        = string
-  default     = "latest"
-}
