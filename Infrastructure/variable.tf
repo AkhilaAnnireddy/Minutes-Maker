@@ -23,7 +23,7 @@ variable "output_bucket_name" {
 }
 
 variable "model_bucket_name" {
-  description = "S3 bucket for ML models (Whisper, BERT)"
+  description = "S3 bucket for ML models (Whisper, BERT, ffmpeg)"
   type        = string
   default     = "minute-maker-models"
 }
@@ -32,4 +32,20 @@ variable "video_upload_lambda_name" {
   description = "Name of the Lambda function that uploads videos to S3 and notifies SQS"
   type        = string
   default     = "video-upload-handler"
+}
+
+variable "video_transcriber_ecr_image_uri" {
+  description = "ECR image URI for the video transcriber Lambda Docker deployment"
+  type        = string
+}
+
+variable "summarizer_ecr_image_uri" {
+  description = "ECR image URI for the summarizer Lambda Docker deployment"
+  type        = string
+}
+
+variable "image_tag" {
+  description = "Docker image tag for Lambda deployments (like latest, v1, v2)"
+  type        = string
+  default     = "latest"
 }

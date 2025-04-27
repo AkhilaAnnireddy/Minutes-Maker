@@ -1,9 +1,8 @@
 import json
 import boto3
-import base64
-import uuid
 import os
 import logging
+from botocore.exceptions import ClientError
 
 # Setup logging
 logger = logging.getLogger()
@@ -14,46 +13,59 @@ s3 = boto3.client("s3")
 sqs = boto3.client("sqs")
 
 # Environment variables
-BUCKET_NAME = os.environ.get("BUCKET_NAME")
-S3_FOLDER = os.environ.get("S3_FOLDER", "input/")
 SQS_QUEUE_URL = os.environ.get("SQS_QUEUE_URL")
 
 def lambda_handler(event, context):
     try:
         logger.info("Lambda triggered with event metadata: %s", json.dumps(event.get("headers", {})))
 
-        # Step 1: Get base64-encoded file content from API Gateway
-        file_data = event["body"]
-        if event.get("isBase64Encoded", False):
-            file_data = base64.b64decode(file_data)
-            logger.info("Received base64-encoded file and successfully decoded.")
-        else:
-            file_data = file_data.encode("utf-8")
-            logger.info("Received plain text data, encoded to bytes.")
+        # Step 1: Parse the incoming JSON body
+        body = event.get("body")
+        if body is None:
+            raise ValueError("Request body is missing.")
 
-        # Step 2: Generate a unique filename
-        filename = f"meeting_{uuid.uuid4()}.mp4"
-        s3_key = f"{S3_FOLDER}{filename}"
-        logger.info(f"Generated S3 key: {s3_key}")
+        # If the event is from API Gateway HTTP API, body might be a raw JSON string
+        if isinstance(body, str):
+            body = json.loads(body)
 
-        # Step 3: Upload file to S3
-        s3.put_object(Bucket=BUCKET_NAME, Key=s3_key, Body=file_data)
-        logger.info(f"Successfully uploaded to s3://{BUCKET_NAME}/{s3_key}")
+        bucket = body.get("bucket")
+        key = body.get("key")
 
-        # Step 4: Notify SQS for transcription
-        message_body = json.dumps({"s3_key": s3_key})
+        if not bucket or not key:
+            raise ValueError("Both 'bucket' and 'key' must be provided in the request body.")
+
+        logger.info(f"Received bucket: {bucket}, key: {key}")
+
+        # Step 2: Check if the file exists in S3
+        try:
+            s3.head_object(Bucket=bucket, Key=key)
+            logger.info(f"File {key} exists in bucket {bucket}.")
+        except ClientError as e:
+            if e.response['Error']['Code'] == "404":
+                logger.error(f"File {key} not found in bucket {bucket}.")
+                return {
+                    "statusCode": 404,
+                    "body": json.dumps({"error": "File not found in S3 bucket."})
+                }
+            else:
+                logger.error(f"Unexpected error checking S3: {str(e)}")
+                raise
+
+        # Step 3: Notify SQS
+        message_body = json.dumps({"bucket": bucket, "key": key})
         response = sqs.send_message(
             QueueUrl=SQS_QUEUE_URL,
             MessageBody=message_body
         )
         logger.info(f"Message sent to SQS with MessageId: {response['MessageId']}")
 
+        # Step 4: Return success
         return {
             "statusCode": 200,
             "body": json.dumps({
-                "message": "File uploaded and queued successfully.",
-                "filename": filename,
-                "s3_key": s3_key
+                "message": "File exists. Notification sent to processing queue.",
+                "bucket": bucket,
+                "key": key
             })
         }
 

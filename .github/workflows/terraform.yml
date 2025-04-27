@@ -27,10 +27,11 @@ jobs:
         with:
           terraform_version: 1.3.0
 
-      - name: Zip video-upload-handler Lambda
+      - name: Zip updated video-upload-handler Lambda
         run: |
           cd Backend/Services/VideoUploader
-          zip -r upload_handler.zip .
+          rm -f upload_handler.zip  # Clean old zip if exists
+          zip -r upload_handler.zip .   # Fresh zip
           mkdir -p ../../../Infrastructure/lambda
           mv upload_handler.zip ../../../Infrastructure/lambda/upload_handler.zip
 

@@ -1,0 +1,81 @@
+name: Build, Push Docker Image, and Deploy Terraform
+
+on:
+  push:
+    branches:
+      - main
+      - feature/infrastructure
+    paths:
+      - "Backend/Services/VideoTranscriber/**"
+
+jobs:
+  build-push-and-deploy:
+    name: Build Docker Image, Push to ECR & Terraform Apply
+    runs-on: ubuntu-latest
+
+    env:
+      ECR_REPO: minute-maker-video-transcriber
+      AWS_REGION: us-east-1
+      IMAGE_TAG: latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v1
+
+      - name: Build Docker image
+        run: |
+          docker build -t $ECR_REPO:$IMAGE_TAG ./Backend/Services/VideoTranscriber
+
+      - name: Tag Docker image for ECR
+        run: |
+          docker tag $ECR_REPO:$IMAGE_TAG ${{ steps.login-ecr.outputs.registry }}/$ECR_REPO:$IMAGE_TAG
+
+      - name: Push Docker image to ECR
+        run: |
+          docker push ${{ steps.login-ecr.outputs.registry }}/$ECR_REPO:$IMAGE_TAG
+
+      - name: Zip updated video-upload-handler Lambda
+        run: |
+          cd Backend/Services/VideoUploader
+          rm -f upload_handler.zip || true
+          zip -r upload_handler.zip .
+          mkdir -p ../../../Infrastructure/lambda
+          mv upload_handler.zip ../../../Infrastructure/lambda/upload_handler.zip
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: 1.3.0
+
+      - name: Terraform Init
+        working-directory: ./Infrastructure
+        run: terraform init
+
+      - name: Terraform Format (auto-correct)
+        working-directory: ./Infrastructure
+        run: |
+          terraform fmt -recursive
+          echo "Terraform files formatted (if needed)."
+
+      - name: Terraform Validate
+        working-directory: ./Infrastructure
+        run: terraform validate
+
+      - name: Terraform Plan
+        working-directory: ./Infrastructure
+        run: terraform plan
+
+      - name: Terraform Apply (auto-approve)
+        working-directory: ./Infrastructure
+        run: terraform apply -auto-approve

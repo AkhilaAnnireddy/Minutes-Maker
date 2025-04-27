@@ -9,7 +9,7 @@ resource "aws_sqs_queue" "video_transcriber_notifier_dlq" {
 resource "aws_sqs_queue" "video_transcriber_notifier" {
   name = "video-transcriber-notifier"
 
-  visibility_timeout_seconds = 300   # Whisper Lambda has enough time
+  visibility_timeout_seconds = 900
   message_retention_seconds  = 86400 # 1 day
   delay_seconds              = 0
   receive_wait_time_seconds  = 0
@@ -24,7 +24,7 @@ resource "aws_sqs_queue" "video_transcriber_notifier" {
 resource "aws_sqs_queue" "summary_generator_notifier" {
   name = "summary-generator-notifier"
 
-  visibility_timeout_seconds = 180 # Summarizer Lambda
+  visibility_timeout_seconds = 1000 # <-- Updated to 1000 seconds (safe for 900s Lambda timeout)
   message_retention_seconds  = 86400
   delay_seconds              = 0
   receive_wait_time_seconds  = 0
