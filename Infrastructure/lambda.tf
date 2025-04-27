@@ -145,6 +145,7 @@ resource "aws_iam_role_policy" "summarizer_lambda_policy" {
   policy = jsonencode({
     Version = "2012-10-17",
     Statement = [
+      # Allow Lambda to write logs
       {
         Effect = "Allow",
         Action = [
@@ -154,6 +155,15 @@ resource "aws_iam_role_policy" "summarizer_lambda_policy" {
         ],
         Resource = "arn:aws:logs:*:*:*"
       },
+      # Allow Lambda to list objects in model bucket
+      {
+        Effect = "Allow",
+        Action = [
+          "s3:ListBucket"
+        ],
+        Resource = "arn:aws:s3:::${var.model_bucket_name}"
+      },
+      # Allow Lambda to get/put objects from all needed buckets
       {
         Effect = "Allow",
         Action = [
@@ -161,10 +171,12 @@ resource "aws_iam_role_policy" "summarizer_lambda_policy" {
           "s3:PutObject"
         ],
         Resource = [
+          "arn:aws:s3:::${var.model_bucket_name}/*",
           "arn:aws:s3:::${var.intermediate_bucket_name}/*",
           "arn:aws:s3:::${var.output_bucket_name}/*"
         ]
       },
+      # Allow reading from SQS summary generator queue
       {
         Effect = "Allow",
         Action = [
