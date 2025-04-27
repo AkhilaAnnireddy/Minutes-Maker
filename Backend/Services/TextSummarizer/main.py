@@ -58,20 +58,35 @@ def generate_minutes(transcript_text):
     tokenizer = AutoTokenizer.from_pretrained(MODEL_DIR)
     model = AutoModelForSeq2SeqLM.from_pretrained(MODEL_DIR)
 
-    prompt = f"Summarize this meeting transcript into clear bullet points:\n\n{transcript_text}"
-    inputs = tokenizer(prompt, return_tensors="pt", truncation=True)
+    # Improved prompt for better control
+    prompt = (
+        "You are a professional meeting assistant.\n"
+        "Summarize the following meeting transcript into a structured set of bullet points.\n"
+        "Focus on important updates, action items, blockers, and priorities.\n\n"
+        f"Meeting Transcript:\n{transcript_text}"
+    )
+
+    # Tokenize properly
+    inputs = tokenizer(
+        prompt,
+        return_tensors="pt",
+        truncation=True,
+        max_length=512   # Very important — control input size
+    )
 
     logger.info("Generating summary using FLAN-T5...")
     outputs = model.generate(
         **inputs,
-        max_length=512,       
-        max_new_tokens=200,    
-        early_stopping=True,    
-        num_beams=2             
+        max_new_tokens=300,    
+        early_stopping=True,
+        num_beams=4,           # Slightly higher for better generation
+        no_repeat_ngram_size=3 # Prevent repeating words
     )
+
     summary = tokenizer.decode(outputs[0], skip_special_tokens=True)
 
     return summary
+
 
 def lambda_handler(event, context):
     try:
