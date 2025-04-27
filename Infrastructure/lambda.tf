@@ -45,12 +45,13 @@ resource "aws_lambda_function" "summarizer_lambda" {
 
   package_type  = "Image"
   image_uri     = "${var.summarizer_ecr_image_uri}@${data.aws_ecr_image.summarizer_image.image_digest}"
+  
   timeout       = 900
-  memory_size   = 3000
+  memory_size   = 6144 
   architectures = ["x86_64"]
 
   ephemeral_storage {
-    size = 1024
+    size = 2048        
   }
 
   environment {
