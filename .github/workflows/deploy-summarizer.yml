@@ -7,6 +7,8 @@ on:
       - feature/infrastructure
     paths:
       - "Backend/Services/TextSummarizer/**"
+      - "Backend/Services/UploadHandler/**"
+      - "Infrastructure/**"
 
 jobs:
   build-push-and-deploy:
@@ -44,6 +46,14 @@ jobs:
       - name: Push Docker image to ECR
         run: |
           docker push ${{ steps.login-ecr.outputs.registry }}/$ECR_REPO:$IMAGE_TAG
+
+      - name: Create upload_handler.zip for video-upload-handler Lambda
+        working-directory: ./Infrastructure
+        run: |
+          mkdir -p lambda
+          cp ../Backend/Services/UploadHandler/main.py lambda/
+          cd lambda
+          zip upload_handler.zip main.py
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v2
