@@ -23,11 +23,11 @@ resource "aws_lambda_function" "video_transcriber" {
 
   environment {
     variables = {
-      MODEL_BUCKET               = var.model_bucket_name
-      MODEL_PREFIX               = "video-transcriber-models/"
-      VIDEO_BUCKET               = var.input_bucket_name
-      INTERMEDIATE_BUCKET        = var.intermediate_bucket_name
-      SQS_SUMMARIZER_QUEUE_URL   = aws_sqs_queue.summary_generator_notifier.id
+      MODEL_BUCKET             = var.model_bucket_name
+      MODEL_PREFIX             = "video-transcriber-models/"
+      VIDEO_BUCKET             = var.input_bucket_name
+      INTERMEDIATE_BUCKET      = var.intermediate_bucket_name
+      SQS_SUMMARIZER_QUEUE_URL = aws_sqs_queue.summary_generator_notifier.id
     }
   }
 
@@ -47,8 +47,10 @@ resource "aws_lambda_function" "summarizer_lambda" {
 
   environment {
     variables = {
-      INPUT_BUCKET  = var.intermediate_bucket_name
-      OUTPUT_BUCKET = var.output_bucket_name
+      MODEL_BUCKET        = var.model_bucket_name
+      MODEL_PREFIX        = "summarizer-models/"
+      INTERMEDIATE_BUCKET = var.intermediate_bucket_name
+      OUTPUT_BUCKET       = var.output_bucket_name
     }
   }
 
@@ -107,19 +109,12 @@ resource "aws_iam_role_policy" "lambda_transcriber_policy" {
       {
         Effect = "Allow",
         Action = [
-          "s3:ListBucket"
-        ],
-        Resource = [
-          "arn:aws:s3:::${var.model_bucket_name}"
-        ]
-      },
-      {
-        Effect = "Allow",
-        Action = [
+          "s3:ListBucket",
           "s3:GetObject",
           "s3:PutObject"
         ],
         Resource = [
+          "arn:aws:s3:::${var.model_bucket_name}",
           "arn:aws:s3:::${var.model_bucket_name}/*",
           "arn:aws:s3:::${var.input_bucket_name}/*",
           "arn:aws:s3:::${var.intermediate_bucket_name}/*"
@@ -127,17 +122,16 @@ resource "aws_iam_role_policy" "lambda_transcriber_policy" {
       },
       {
         Effect = "Allow",
-        Action = ["sqs:SendMessage"],
-        Resource = aws_sqs_queue.summary_generator_notifier.arn
-      },
-      {
-        Effect = "Allow",
         Action = [
+          "sqs:SendMessage",
           "sqs:ReceiveMessage",
           "sqs:DeleteMessage",
           "sqs:GetQueueAttributes"
         ],
-        Resource = aws_sqs_queue.video_transcriber_notifier.arn
+        Resource = [
+          aws_sqs_queue.summary_generator_notifier.arn,
+          aws_sqs_queue.video_transcriber_notifier.arn
+        ]
       }
     ]
   })
