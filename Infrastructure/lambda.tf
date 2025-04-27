@@ -59,6 +59,7 @@ resource "aws_lambda_function" "summarizer_lambda" {
       MODEL_PREFIX        = "summarizer-models/"
       INTERMEDIATE_BUCKET = var.intermediate_bucket_name
       OUTPUT_BUCKET       = var.output_bucket_name
+      DEPLOY_TIMESTAMP    = timestamp()
     }
   }
 
