@@ -12,7 +12,7 @@ data "aws_ecr_image" "video_transcriber_image" {
 ##############################################
 
 resource "aws_lambda_function" "video_uploader_lambda" {
-  function_name    = video_uploader_lambda
+  function_name    = var.video_uploader_lambda_name
   filename         = "${path.module}/lambda/upload_handler.zip"
   handler          = "main.lambda_handler"
   runtime          = "python3.11"
@@ -36,7 +36,7 @@ resource "aws_lambda_function" "video_uploader_lambda" {
 }
 
 resource "aws_cloudwatch_log_group" "video_uploader_lambda_logs" {
-  name              = "/aws/lambda/video_uploader_lambda"
+  name              = "/aws/lambda/${var.video_uploader_lambda_name}"
   retention_in_days = 7
 }
 
