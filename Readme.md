@@ -1,6 +1,6 @@
 # 🎥📝 Minutes Maker – Video Transcription and Summarization Pipeline
 
-Welcome! 🎉  
+Welcome!
 This project automatically transcribes meeting videos and summarizes them into professional meeting minutes — powered by AWS Serverless architecture.
 
 ---
