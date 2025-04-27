@@ -30,14 +30,21 @@ resource "aws_lambda_function" "video_uploader_lambda" {
   }
 
   depends_on = [
-    aws_iam_role_policy.video_uploader_lambda_policy,
-    aws_cloudwatch_log_group.video_uploader_lambda_logs
+    aws_iam_role_policy.video_uploader_lambda_policy
   ]
 }
 
-resource "aws_cloudwatch_log_group" "video_uploader_lambda_logs" {
-  name              = "/aws/lambda/${var.video_uploader_lambda_name}"
+resource "aws_cloudwatch_log_group" "lambda_logs" {
+  for_each = {
+    uploader     = var.video_uploader_lambda_name
+    transcriber  = "video-transcriber"
+  }
+  name              = "/aws/lambda/${each.value}"
   retention_in_days = 7
+
+  lifecycle {
+    ignore_changes = all
+  }
 }
 
 resource "aws_iam_role" "video_uploader_role" {
@@ -106,7 +113,9 @@ resource "aws_lambda_function" "video_transcriber_lambda" {
     }
   }
 
-  depends_on = [data.aws_ecr_image.video_transcriber_image]
+  depends_on = [
+    aws_iam_role_policy.transcriber_lambda_policy
+  ]
 }
 
 resource "aws_iam_role" "transcriber_lambda_role" {
@@ -168,4 +177,3 @@ resource "aws_lambda_event_source_mapping" "sqs_transcriber_trigger" {
   batch_size       = 1
   enabled          = true
 }
-
