@@ -36,7 +36,7 @@ resource "aws_lambda_function" "video_uploader_lambda" {
 }
 
 resource "aws_cloudwatch_log_group" "video_uploader_lambda_logs" {
-  name              = "/aws/lambda/${var.video_uploader_lambda_name}"
+  name              = "/aws/lambda/video_uploader_lambda"
   retention_in_days = 7
 }
 
