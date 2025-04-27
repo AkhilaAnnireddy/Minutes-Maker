@@ -159,12 +159,6 @@ resource "aws_iam_role_policy" "upload_lambda_policy" {
   })
 }
 
-# --- CloudWatch Log Group for video-upload-handler ---
-resource "aws_cloudwatch_log_group" "video_upload_lambda_logs" {
-  name              = "/aws/lambda/video-upload-handler"
-  retention_in_days = 7
-}
-
 # --- Lambda Function: video-upload-handler ---
 resource "aws_lambda_function" "video_upload_handler" {
   function_name    = var.video_upload_lambda_name
@@ -185,7 +179,6 @@ resource "aws_lambda_function" "video_upload_handler" {
   }
 
   depends_on = [
-    aws_iam_role_policy.upload_lambda_policy,
-    aws_cloudwatch_log_group.video_upload_lambda_logs
+    aws_iam_role_policy.upload_lambda_policy
   ]
 }
