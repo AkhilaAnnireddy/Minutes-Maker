@@ -4,16 +4,22 @@ output "s3_input_bucket_name" {
   value       = aws_s3_bucket.input_bucket.bucket
 }
 
-# Output: video-upload-handler Lambda function name
+# Output: Video Uploader Lambda function name
 output "video_upload_lambda_function_name" {
   description = "The name of the video uploader Lambda function"
-  value       = aws_lambda_function.video_upload_handler.function_name
+  value       = aws_lambda_function.video_uploader_lambda.function_name
 }
 
-# Output: video-transcriber Lambda function name
+# Output: Video Transcriber Lambda function name
 output "video_transcriber_lambda_function_name" {
   description = "The name of the video transcriber Lambda function"
-  value       = aws_lambda_function.video_transcriber.function_name
+  value       = aws_lambda_function.video_transcriber_lambda.function_name
+}
+
+# Output: Summarizer Lambda function name
+output "summarizer_lambda_function_name" {
+  description = "The name of the summarizer Lambda function"
+  value       = aws_lambda_function.summarizer_lambda.function_name
 }
 
 # Output: Main queue from uploader → transcriber

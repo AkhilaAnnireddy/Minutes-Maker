@@ -34,10 +34,9 @@ variable "model_bucket_name" {
 
 # --- Lambda Names ---
 
-variable "video_upload_lambda_name" {
+variable "video_uploader_lambda_name" {
   description = "Name of the Lambda function that uploads videos to S3 and notifies SQS"
   type        = string
-  default     = "video-upload-handler"
 }
 
 # --- ECR Details for Docker Lambdas ---
