@@ -24,7 +24,6 @@ TMP_DIR = "/tmp"
 MODEL_DIR = os.path.join(TMP_DIR, "summarizer-model")
 MODEL_ZIP_PATH = os.path.join(TMP_DIR, "summarizer-models.zip")
 TRANSCRIPT_PATH = os.path.join(TMP_DIR, "transcript.txt")
-OUTPUT_MOM_PATH = os.path.join(TMP_DIR, "minutes.txt")
 
 def download_file(bucket, key, destination):
     logger.info(f"Downloading s3://{bucket}/{key} -> {destination}")
@@ -66,10 +65,13 @@ def lambda_handler(event, context):
         # Step 2: Download transcript
         download_file(INTERMEDIATE_BUCKET, transcript_key, TRANSCRIPT_PATH)
 
-        # Step 3: Download and unzip model (if not already)
+        # Step 3: Download and unzip model only if not already present
         if not os.path.exists(MODEL_DIR):
+            logger.info(f"Model directory not found at {MODEL_DIR}. Downloading model zip...")
             download_file(MODEL_BUCKET, MODEL_ZIP_KEY, MODEL_ZIP_PATH)
             unzip_model(MODEL_ZIP_PATH, MODEL_DIR)
+        else:
+            logger.info(f"Model directory already exists at {MODEL_DIR}. Skipping model download.")
 
         # Step 4: Read transcript
         with open(TRANSCRIPT_PATH, "r") as f:
@@ -78,12 +80,15 @@ def lambda_handler(event, context):
         # Step 5: Summarize
         summary = generate_minutes(transcript_text)
 
-        with open(OUTPUT_MOM_PATH, "w") as f:
+        # Step 6: Save output file
+        output_key = transcript_key.replace(".txt", "_minutes.txt")
+        output_local_path = os.path.join(TMP_DIR, os.path.basename(output_key))
+        
+        with open(output_local_path, "w") as f:
             f.write(summary)
 
-        # Step 6: Upload summarized minutes
-        output_key = transcript_key.replace(".txt", "_minutes.txt")
-        upload_file(OUTPUT_MOM_PATH, OUTPUT_BUCKET, output_key)
+        # Step 7: Upload summarized minutes
+        upload_file(output_local_path, OUTPUT_BUCKET, output_key)
 
         logger.info(f"Summarization complete. Minutes saved to {OUTPUT_BUCKET}/{output_key}")
 

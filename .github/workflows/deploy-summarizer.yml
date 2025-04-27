@@ -7,8 +7,6 @@ on:
       - feature/infrastructure
     paths:
       - "Backend/Services/TextSummarizer/**"
-      - "Backend/Services/UploadHandler/**"
-      - "Infrastructure/**"
 
 jobs:
   build-push-and-deploy:
