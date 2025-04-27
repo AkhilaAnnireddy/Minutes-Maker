@@ -12,7 +12,7 @@ data "aws_ecr_image" "video_transcriber_image" {
 ##############################################
 
 resource "aws_lambda_function" "video_uploader_lambda" {
-  function_name    = var.video_uploader_lambda_name
+  function_name    = video_uploader_lambda
   filename         = "${path.module}/lambda/upload_handler.zip"
   handler          = "main.lambda_handler"
   runtime          = "python3.11"

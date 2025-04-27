@@ -32,13 +32,6 @@ variable "model_bucket_name" {
   default     = "minute-maker-models"
 }
 
-# --- Lambda Names ---
-
-variable "video_uploader_lambda_name" {
-  description = "Name of the Lambda function that uploads videos to S3 and notifies SQS"
-  type        = string
-}
-
 # --- ECR Details for Docker Lambdas ---
 
 variable "ecr_image_uri" {
