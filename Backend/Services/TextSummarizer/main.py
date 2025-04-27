@@ -64,10 +64,10 @@ def generate_minutes(transcript_text):
     logger.info("Generating summary using FLAN-T5...")
     outputs = model.generate(
         **inputs,
-        max_length=512,         # final output length
-        max_new_tokens=200,     # limit how much it generates
-        early_stopping=True,    # stop when done
-        num_beams=2             # (optional) makes output slightly better
+        max_length=512,       
+        max_new_tokens=200,    
+        early_stopping=True,    
+        num_beams=2             
     )
     summary = tokenizer.decode(outputs[0], skip_special_tokens=True)
 
