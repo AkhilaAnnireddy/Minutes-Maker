@@ -8,6 +8,19 @@ data "aws_ecr_image" "video_transcriber_image" {
 }
 
 ##############################################
+# --- Lookup existing log groups ---
+##############################################
+
+data "aws_cloudwatch_log_group" "existing_lambda_log_groups" {
+  for_each = {
+    uploader    = var.video_uploader_lambda_name
+    transcriber = "video-transcriber"
+  }
+
+  name = "/aws/lambda/${each.value}"
+}
+
+##############################################
 # --- Lambda: Video Uploader
 ##############################################
 
@@ -36,9 +49,12 @@ resource "aws_lambda_function" "video_uploader_lambda" {
 
 resource "aws_cloudwatch_log_group" "lambda_logs" {
   for_each = {
-    uploader     = var.video_uploader_lambda_name
-    transcriber  = "video-transcriber"
+    uploader    = var.video_uploader_lambda_name
+    transcriber = "video-transcriber"
   }
+
+  count = length(try(data.aws_cloudwatch_log_group.existing_lambda_log_groups[each.key].name, "")) == 0 ? 1 : 0
+
   name              = "/aws/lambda/${each.value}"
   retention_in_days = 7
 
