@@ -1,16 +1,16 @@
 # --- Pull the latest ECR image digest for Transcriber ---
 data "aws_ecr_image" "video_transcriber_image" {
   repository_name = "minute-maker-video-transcriber"
-  image_tag       = var.image_tag
+  image_tag       = var.video_transcriber_image_tag
 }
 
 # --- Pull the latest ECR image digest for Summarizer ---
 data "aws_ecr_image" "summarizer_image" {
   repository_name = "minute-maker-summarizer"
-  image_tag       = var.image_tag
+  image_tag       = var.summarizer_image_tag
 }
 
-# --- Lambda definition for video transcriber using Docker image ---
+# --- Lambda definition for Video Transcriber using Docker image ---
 resource "aws_lambda_function" "video_transcriber" {
   function_name = "video-transcriber"
   role          = aws_iam_role.lambda_transcriber_role.arn
@@ -23,18 +23,41 @@ resource "aws_lambda_function" "video_transcriber" {
 
   environment {
     variables = {
-      MODEL_BUCKET               = var.model_bucket_name
-      MODEL_PREFIX               = "video-transcriber-models/"
-      VIDEO_BUCKET               = var.input_bucket_name
-      INTERMEDIATE_BUCKET        = var.intermediate_bucket_name
-      SQS_SUMMARIZER_QUEUE_URL   = aws_sqs_queue.summary_generator_notifier.id
+      MODEL_BUCKET             = var.model_bucket_name
+      MODEL_PREFIX             = "video-transcriber-models/"
+      VIDEO_BUCKET             = var.input_bucket_name
+      INTERMEDIATE_BUCKET      = var.intermediate_bucket_name
+      SQS_SUMMARIZER_QUEUE_URL = aws_sqs_queue.summary_generator_notifier.id
     }
   }
 
   depends_on = [data.aws_ecr_image.video_transcriber_image]
 }
 
-# --- IAM Role for Transcriber Lambda ---
+# --- Lambda definition for Summarizer using Docker image ---
+resource "aws_lambda_function" "summarizer" {
+  function_name = "summarizer"
+  role          = aws_iam_role.lambda_summarizer_role.arn
+
+  package_type  = "Image"
+  image_uri     = "${var.summarizer_ecr_image_uri}@${data.aws_ecr_image.summarizer_image.image_digest}"
+  timeout       = 900
+  memory_size   = 1024
+  architectures = ["x86_64"]
+
+  environment {
+    variables = {
+      MODEL_BUCKET        = var.model_bucket_name
+      MODEL_PREFIX        = "summarizer-models/"
+      INTERMEDIATE_BUCKET = var.intermediate_bucket_name
+      OUTPUT_BUCKET       = var.output_bucket_name
+    }
+  }
+
+  depends_on = [data.aws_ecr_image.summarizer_image]
+}
+
+# --- IAM Role for Video Transcriber Lambda ---
 resource "aws_iam_role" "lambda_transcriber_role" {
   name = "lambda_transcriber_role"
 
@@ -50,7 +73,23 @@ resource "aws_iam_role" "lambda_transcriber_role" {
   })
 }
 
-# --- IAM Policy for Transcriber Lambda ---
+# --- IAM Role for Summarizer Lambda ---
+resource "aws_iam_role" "lambda_summarizer_role" {
+  name = "lambda_summarizer_role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [{
+      Effect = "Allow",
+      Principal = {
+        Service = "lambda.amazonaws.com"
+      },
+      Action = "sts:AssumeRole"
+    }]
+  })
+}
+
+# --- IAM Policy for Video Transcriber Lambda ---
 resource "aws_iam_role_policy" "lambda_transcriber_policy" {
   name = "lambda-transcriber-permissions"
   role = aws_iam_role.lambda_transcriber_role.id
@@ -91,7 +130,43 @@ resource "aws_iam_role_policy" "lambda_transcriber_policy" {
   })
 }
 
-# --- SQS trigger for Transcriber Lambda ---
+# --- IAM Policy for Summarizer Lambda ---
+resource "aws_iam_role_policy" "lambda_summarizer_policy" {
+  name = "lambda-summarizer-permissions"
+  role = aws_iam_role.lambda_summarizer_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [
+      {
+        Effect = "Allow",
+        Action = ["logs:CreateLogGroup", "logs:CreateLogStream", "logs:PutLogEvents"],
+        Resource = "arn:aws:logs:*:*:*"
+      },
+      {
+        Effect = "Allow",
+        Action = ["s3:ListBucket"],
+        Resource = ["arn:aws:s3:::${var.model_bucket_name}"]
+      },
+      {
+        Effect = "Allow",
+        Action = ["s3:GetObject", "s3:PutObject"],
+        Resource = [
+          "arn:aws:s3:::${var.model_bucket_name}/*",
+          "arn:aws:s3:::${var.intermediate_bucket_name}/*",
+          "arn:aws:s3:::${var.output_bucket_name}/*"
+        ]
+      },
+      {
+        Effect = "Allow",
+        Action = ["sqs:ReceiveMessage", "sqs:DeleteMessage", "sqs:GetQueueAttributes"],
+        Resource = aws_sqs_queue.summary_generator_notifier.arn
+      }
+    ]
+  })
+}
+
+# --- SQS trigger for Video Transcriber Lambda ---
 resource "aws_lambda_event_source_mapping" "sqs_transcriber_trigger" {
   event_source_arn = aws_sqs_queue.video_transcriber_notifier.arn
   function_name    = aws_lambda_function.video_transcriber.arn
@@ -99,80 +174,10 @@ resource "aws_lambda_event_source_mapping" "sqs_transcriber_trigger" {
   enabled          = true
 }
 
-# --- IAM Role for video-upload-handler ---
-resource "aws_iam_role" "video_upload_lambda_exec_role" {
-  name = "video-upload-handler-role"
-
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17",
-    Statement = [{
-      Effect = "Allow",
-      Principal = {
-        Service = "lambda.amazonaws.com"
-      },
-      Action = "sts:AssumeRole"
-    }]
-  })
-}
-
-# --- Attach basic Lambda logging for uploader ---
-resource "aws_iam_role_policy_attachment" "upload_lambda_logging" {
-  role       = aws_iam_role.video_upload_lambda_exec_role.name
-  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
-}
-
-# --- IAM Policy: S3 + SQS Access for Upload Lambda ---
-resource "aws_iam_role_policy" "upload_lambda_policy" {
-  name = "video-upload-handler-policy"
-  role = aws_iam_role.video_upload_lambda_exec_role.id
-
-  policy = jsonencode({
-    Version = "2012-10-17",
-    Statement = [
-      {
-        Effect = "Allow",
-        Action = ["s3:PutObject", "s3:ListBucket", "s3:GetObject"],
-        Resource = [
-          "arn:aws:s3:::${var.input_bucket_name}",
-          "arn:aws:s3:::${var.input_bucket_name}/*"
-        ]
-      },
-      {
-        Effect = "Allow",
-        Action = ["sqs:SendMessage"],
-        Resource = aws_sqs_queue.video_transcriber_notifier.arn
-      }
-    ]
-  })
-}
-
-# --- CloudWatch Log Group for video-upload-handler ---
-resource "aws_cloudwatch_log_group" "video_upload_lambda_logs" {
-  name              = "/aws/lambda/video-upload-handler"
-  retention_in_days = 7
-}
-
-# --- Lambda Function: video-upload-handler ---
-resource "aws_lambda_function" "video_upload_handler" {
-  function_name    = var.video_upload_lambda_name
-  filename         = "${path.module}/lambda/upload_handler.zip"
-  handler          = "main.lambda_handler"
-  runtime          = "python3.11"
-  role             = aws_iam_role.video_upload_lambda_exec_role.arn
-  timeout          = 30
-  memory_size      = 256
-  source_code_hash = filebase64sha256("${path.module}/lambda/upload_handler.zip")
-
-  environment {
-    variables = {
-      BUCKET_NAME     = var.input_bucket_name
-      S3_FOLDER       = "input/"
-      SQS_QUEUE_URL   = aws_sqs_queue.video_transcriber_notifier.id
-    }
-  }
-
-  depends_on = [
-    aws_iam_role_policy.upload_lambda_policy,
-    aws_cloudwatch_log_group.video_upload_lambda_logs
-  ]
+# --- SQS trigger for Summarizer Lambda ---
+resource "aws_lambda_event_source_mapping" "sqs_summarizer_trigger" {
+  event_source_arn = aws_sqs_queue.summary_generator_notifier.arn
+  function_name    = aws_lambda_function.summarizer.arn
+  batch_size       = 1
+  enabled          = true
 }
