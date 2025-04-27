@@ -17,7 +17,7 @@ data "aws_ecr_image" "summarizer_image" {
 ##############################################
 
 resource "aws_lambda_function" "video_uploader_lambda" {
-  function_name    = var.video_upload_lambda_name
+  function_name    = var.video_uploader_lambda_name
   filename         = "${path.module}/lambda/upload_handler.zip"
   handler          = "main.lambda_handler"
   runtime          = "python3.11"
@@ -40,13 +40,11 @@ resource "aws_lambda_function" "video_uploader_lambda" {
   ]
 }
 
-# CloudWatch Logs for Video Uploader Lambda
 resource "aws_cloudwatch_log_group" "video_uploader_lambda_logs" {
-  name              = "/aws/lambda/${var.video_upload_lambda_name}"
+  name              = "/aws/lambda/${var.video_uploader_lambda_name}"
   retention_in_days = 7
 }
 
-# IAM Role for Video Uploader
 resource "aws_iam_role" "video_uploader_role" {
   name = "video-uploader-role"
 
@@ -60,7 +58,6 @@ resource "aws_iam_role" "video_uploader_role" {
   })
 }
 
-# IAM Policy for Video Uploader
 resource "aws_iam_role_policy" "video_uploader_lambda_policy" {
   name = "video-uploader-permissions"
   role = aws_iam_role.video_uploader_role.id
@@ -117,7 +114,6 @@ resource "aws_lambda_function" "video_transcriber_lambda" {
   depends_on = [data.aws_ecr_image.video_transcriber_image]
 }
 
-# IAM Role for Video Transcriber
 resource "aws_iam_role" "transcriber_lambda_role" {
   name = "video-transcriber-role"
 
@@ -131,7 +127,6 @@ resource "aws_iam_role" "transcriber_lambda_role" {
   })
 }
 
-# IAM Policy for Video Transcriber
 resource "aws_iam_role_policy" "transcriber_lambda_policy" {
   name = "video-transcriber-permissions"
   role = aws_iam_role.transcriber_lambda_role.id
@@ -172,7 +167,6 @@ resource "aws_iam_role_policy" "transcriber_lambda_policy" {
   })
 }
 
-# SQS trigger for Video Transcriber
 resource "aws_lambda_event_source_mapping" "sqs_transcriber_trigger" {
   event_source_arn = aws_sqs_queue.video_transcriber_notifier.arn
   function_name    = aws_lambda_function.video_transcriber_lambda.arn
@@ -206,7 +200,6 @@ resource "aws_lambda_function" "summarizer_lambda" {
   depends_on = [data.aws_ecr_image.summarizer_image]
 }
 
-# IAM Role for Summarizer
 resource "aws_iam_role" "summarizer_lambda_role" {
   name = "summarizer-role"
 
@@ -220,7 +213,6 @@ resource "aws_iam_role" "summarizer_lambda_role" {
   })
 }
 
-# IAM Policy for Summarizer
 resource "aws_iam_role_policy" "summarizer_lambda_policy" {
   name = "summarizer-permissions"
   role = aws_iam_role.summarizer_lambda_role.id
@@ -256,7 +248,6 @@ resource "aws_iam_role_policy" "summarizer_lambda_policy" {
   })
 }
 
-# SQS trigger for Summarizer
 resource "aws_lambda_event_source_mapping" "sqs_summarizer_trigger" {
   event_source_arn = aws_sqs_queue.summary_generator_notifier.arn
   function_name    = aws_lambda_function.summarizer_lambda.arn
