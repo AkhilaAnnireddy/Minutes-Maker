@@ -170,6 +170,15 @@ resource "aws_iam_role_policy" "summarizer_lambda_policy" {
           "arn:aws:s3:::${var.intermediate_bucket_name}/*",
           "arn:aws:s3:::${var.output_bucket_name}/*"
         ]
+      },
+      {
+        Effect = "Allow",
+        Action = [
+          "sqs:ReceiveMessage",
+          "sqs:DeleteMessage",
+          "sqs:GetQueueAttributes"
+        ],
+        Resource = aws_sqs_queue.summary_generator_notifier.arn
       }
     ]
   })
@@ -179,6 +188,14 @@ resource "aws_iam_role_policy" "summarizer_lambda_policy" {
 resource "aws_lambda_event_source_mapping" "sqs_transcriber_trigger" {
   event_source_arn = aws_sqs_queue.video_transcriber_notifier.arn
   function_name    = aws_lambda_function.video_transcriber.arn
+  batch_size       = 1
+  enabled          = true
+}
+
+# --- SQS trigger for Summarizer Lambda ---
+resource "aws_lambda_event_source_mapping" "sqs_summarizer_trigger" {
+  event_source_arn = aws_sqs_queue.summary_generator_notifier.arn
+  function_name    = aws_lambda_function.summarizer_lambda.arn
   batch_size       = 1
   enabled          = true
 }
