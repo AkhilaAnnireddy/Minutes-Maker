@@ -18,8 +18,12 @@ resource "aws_lambda_function" "video_transcriber" {
   package_type  = "Image"
   image_uri     = "${var.video_transcriber_ecr_image_uri}@${data.aws_ecr_image.video_transcriber_image.image_digest}"
   timeout       = 900
-  memory_size   = 1024
+  memory_size   = 3000
   architectures = ["x86_64"]
+
+  ephemeral_storage {
+    size = 1024
+  }
 
   environment {
     variables = {
@@ -42,8 +46,12 @@ resource "aws_lambda_function" "summarizer_lambda" {
   package_type  = "Image"
   image_uri     = "${var.summarizer_ecr_image_uri}@${data.aws_ecr_image.summarizer_image.image_digest}"
   timeout       = 900
-  memory_size   = 512
+  memory_size   = 3000
   architectures = ["x86_64"]
+
+  ephemeral_storage {
+    size = 1024
+  }
 
   environment {
     variables = {
@@ -56,6 +64,7 @@ resource "aws_lambda_function" "summarizer_lambda" {
 
   depends_on = [data.aws_ecr_image.summarizer_image]
 }
+
 
 # --- IAM Role for Transcriber Lambda ---
 resource "aws_iam_role" "lambda_transcriber_role" {
