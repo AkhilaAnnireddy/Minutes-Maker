@@ -2,7 +2,6 @@ import os
 import json
 import boto3
 import logging
-import zipfile
 from pathlib import Path
 from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
 
@@ -15,29 +14,44 @@ s3 = boto3.client("s3")
 
 # Environment variables
 MODEL_BUCKET = os.environ["MODEL_BUCKET"]
-MODEL_ZIP_KEY = os.environ["MODEL_ZIP_KEY"]
+MODEL_PREFIX = os.environ["MODEL_PREFIX"]
 INTERMEDIATE_BUCKET = os.environ["INTERMEDIATE_BUCKET"]
 OUTPUT_BUCKET = os.environ["OUTPUT_BUCKET"]
 TMP_DIR = "/tmp"
-
-# File paths
 MODEL_DIR = os.path.join(TMP_DIR, "summarizer-model")
-MODEL_ZIP_PATH = os.path.join(TMP_DIR, "summarizer-models.zip")
 TRANSCRIPT_PATH = os.path.join(TMP_DIR, "transcript.txt")
 
-def download_file(bucket, key, destination):
-    logger.info(f"Downloading s3://{bucket}/{key} -> {destination}")
-    Path(destination).parent.mkdir(parents=True, exist_ok=True)
-    s3.download_file(bucket, key, destination)
+def model_already_downloaded(model_dir):
+    expected_files = [
+        "config.json",
+        "generation_config.json",
+        "model.safetensors",
+        "special_tokens_map.json",
+        "spiece.model",
+        "tokenizer_config.json",
+        "tokenizer.json"
+    ]
+    for file in expected_files:
+        if not os.path.exists(os.path.join(model_dir, file)):
+            return False
+    return True
+
+def download_model_folder(bucket, prefix, destination_dir):
+    logger.info(f"Downloading all model files from s3://{bucket}/{prefix} to {destination_dir}")
+    paginator = s3.get_paginator("list_objects_v2")
+    for page in paginator.paginate(Bucket=bucket, Prefix=prefix):
+        for obj in page.get("Contents", []):
+            key = obj["Key"]
+            if key.endswith('/'):
+                continue
+            relative_path = os.path.relpath(key, prefix)
+            local_path = os.path.join(destination_dir, relative_path)
+            Path(local_path).parent.mkdir(parents=True, exist_ok=True)
+            s3.download_file(bucket, key, local_path)
 
 def upload_file(source, bucket, key):
     logger.info(f"Uploading {source} -> s3://{bucket}/{key}")
     s3.upload_file(source, bucket, key)
-
-def unzip_model(zip_path, extract_dir):
-    logger.info(f"Unzipping model from {zip_path} to {extract_dir}")
-    with zipfile.ZipFile(zip_path, 'r') as zip_ref:
-        zip_ref.extractall(extract_dir)
 
 def generate_minutes(transcript_text):
     logger.info("Loading tokenizer and model from local directory...")
@@ -57,21 +71,21 @@ def lambda_handler(event, context):
     try:
         logger.info(f"Lambda triggered with event: {json.dumps(event)}")
 
-        # Step 1: Parse transcript key from SQS event
+        # Step 1: Parse transcript key
         body = json.loads(event["Records"][0]["body"])
         transcript_key = body["transcript_key"]
-        logger.info(f"Processing transcript file: {transcript_key}")
+        logger.info(f"Processing transcript: {transcript_key}")
 
         # Step 2: Download transcript
-        download_file(INTERMEDIATE_BUCKET, transcript_key, TRANSCRIPT_PATH)
+        Path(TRANSCRIPT_PATH).parent.mkdir(parents=True, exist_ok=True)
+        s3.download_file(INTERMEDIATE_BUCKET, transcript_key, TRANSCRIPT_PATH)
 
-        # Step 3: Download and unzip model only if not already present
-        if not os.path.exists(MODEL_DIR):
-            logger.info(f"Model directory not found at {MODEL_DIR}. Downloading model zip...")
-            download_file(MODEL_BUCKET, MODEL_ZIP_KEY, MODEL_ZIP_PATH)
-            unzip_model(MODEL_ZIP_PATH, MODEL_DIR)
+        # Step 3: Ensure model files are present
+        if not model_already_downloaded(MODEL_DIR):
+            logger.info("Model files not found in /tmp. Downloading...")
+            download_model_folder(MODEL_BUCKET, MODEL_PREFIX, MODEL_DIR)
         else:
-            logger.info(f"Model directory already exists at {MODEL_DIR}. Skipping model download.")
+            logger.info("Model files already exist in /tmp. Skipping download.")
 
         # Step 4: Read transcript
         with open(TRANSCRIPT_PATH, "r") as f:
@@ -80,17 +94,14 @@ def lambda_handler(event, context):
         # Step 5: Summarize
         summary = generate_minutes(transcript_text)
 
-        # Step 6: Save output file
+        # Step 6: Save and upload
         output_key = transcript_key.replace(".txt", "_minutes.txt")
         output_local_path = os.path.join(TMP_DIR, os.path.basename(output_key))
-        
         with open(output_local_path, "w") as f:
             f.write(summary)
-
-        # Step 7: Upload summarized minutes
         upload_file(output_local_path, OUTPUT_BUCKET, output_key)
 
-        logger.info(f"Summarization complete. Minutes saved to {OUTPUT_BUCKET}/{output_key}")
+        logger.info(f"Summarization complete. Uploaded to {OUTPUT_BUCKET}/{output_key}")
 
         return {
             "statusCode": 200,
