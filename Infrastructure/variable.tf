@@ -39,8 +39,8 @@ variable "ecr_image_uri" {
   type        = string
 }
 
-variable "image_tag" {
-  description = "Docker image tag for the video transcriber (like latest, v1, v2)"
+variable "video_transcriber_image_tag" {
+  description = "Docker image tag for the video transcriber Lambda (example: latest, v1, etc.)"
   type        = string
   default     = "latest"
 }
@@ -50,8 +50,8 @@ variable "summarizer_ecr_image_uri" {
   type        = string
 }
 
-variable "image_tag" {
-  description = "Tag of the Docker images"
+variable "summarizer_image_tag" {
+  description = "Docker image tag for the summarizer Lambda (example: latest, v1, etc.)"
   type        = string
   default     = "latest"
 }
