@@ -41,7 +41,7 @@ variable "video_uploader_lambda_name" {
 
 # --- ECR Details for Docker Lambdas ---
 
-variable "video_transcriber_image_tag" {
+variable "ecr_image_uri" {
   description = "ECR image URI for video transcriber Lambda"
   type        = string
 }
