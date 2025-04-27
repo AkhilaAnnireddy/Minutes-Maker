@@ -1,4 +1,4 @@
-# Use official AWS Lambda Python 3.11 base image
+# Using official AWS Lambda Python 3.11 base image
 FROM public.ecr.aws/lambda/python:3.11
 
 # Set working directory
