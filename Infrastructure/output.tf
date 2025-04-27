@@ -16,12 +16,6 @@ output "video_transcriber_lambda_function_name" {
   value       = aws_lambda_function.video_transcriber_lambda.function_name
 }
 
-# Output: Summarizer Lambda function name
-output "summarizer_lambda_function_name" {
-  description = "The name of the summarizer Lambda function"
-  value       = aws_lambda_function.summarizer_lambda.function_name
-}
-
 # Output: Main queue from uploader → transcriber
 output "video_transcriber_queue_url" {
   description = "URL of the SQS queue for the video transcriber"
@@ -50,10 +44,4 @@ output "video_upload_api_endpoint" {
 output "video_transcriber_model_prefix" {
   description = "S3 prefix for video transcriber models"
   value       = "s3://${aws_s3_bucket.model_bucket.bucket}/video-transcriber-models/"
-}
-
-# Output: S3 prefix for summarizer models
-output "summarizer_model_prefix" {
-  description = "S3 prefix for summarizer models"
-  value       = "s3://${aws_s3_bucket.model_bucket.bucket}/summarizer-models/"
 }
