@@ -16,6 +16,12 @@ output "video_transcriber_lambda_function_name" {
   value       = aws_lambda_function.video_transcriber.function_name
 }
 
+# --- Output: summarizer Lambda function name ---
+output "summarizer_lambda_function_name" {
+  description = "The name of the summarizer Lambda function"
+  value       = aws_lambda_function.summarizer_lambda.function_name
+}
+
 # Output: Main queue from uploader → transcriber
 output "video_transcriber_queue_url" {
   description = "URL of the SQS queue for the video transcriber"

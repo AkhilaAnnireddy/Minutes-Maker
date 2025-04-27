@@ -1,6 +1,12 @@
-# --- Pull the latest ECR image digest ---
+# --- Pull the latest ECR image digest for video transcriber ---
 data "aws_ecr_image" "video_transcriber_image" {
   repository_name = "minute-maker-video-transcriber"
+  image_tag       = var.image_tag
+}
+
+# --- Pull the latest ECR image digest for summarizer ---
+data "aws_ecr_image" "summarizer_image" {
+  repository_name = "minute-maker-summarizer"
   image_tag       = var.image_tag
 }
 
@@ -10,7 +16,7 @@ resource "aws_lambda_function" "video_transcriber" {
   role          = aws_iam_role.lambda_transcriber_role.arn
 
   package_type  = "Image"
-  image_uri     = "${var.ecr_image_uri}@${data.aws_ecr_image.video_transcriber_image.image_digest}"
+  image_uri     = "${var.video_transcriber_ecr_image_uri}@${data.aws_ecr_image.video_transcriber_image.image_digest}"
   timeout       = 900
   memory_size   = 1024
   architectures = ["x86_64"]
@@ -28,9 +34,46 @@ resource "aws_lambda_function" "video_transcriber" {
   depends_on = [data.aws_ecr_image.video_transcriber_image]
 }
 
+# --- Lambda definition for summarizer using Docker image ---
+resource "aws_lambda_function" "summarizer_lambda" {
+  function_name = "summarizer-lambda"
+  role          = aws_iam_role.summarizer_lambda_exec_role.arn
+
+  package_type  = "Image"
+  image_uri     = "${var.summarizer_ecr_image_uri}@${data.aws_ecr_image.summarizer_image.image_digest}"
+  timeout       = 900
+  memory_size   = 512
+  architectures = ["x86_64"]
+
+  environment {
+    variables = {
+      INPUT_BUCKET  = var.intermediate_bucket_name
+      OUTPUT_BUCKET = var.output_bucket_name
+    }
+  }
+
+  depends_on = [data.aws_ecr_image.summarizer_image]
+}
+
 # --- IAM Role for Transcriber Lambda ---
 resource "aws_iam_role" "lambda_transcriber_role" {
   name = "lambda_transcriber_role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [{
+      Effect = "Allow",
+      Principal = {
+        Service = "lambda.amazonaws.com"
+      },
+      Action = "sts:AssumeRole"
+    }]
+  })
+}
+
+# --- IAM Role for Summarizer Lambda ---
+resource "aws_iam_role" "summarizer_lambda_exec_role" {
+  name = "summarizer-lambda-exec-role"
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17",
@@ -95,6 +138,38 @@ resource "aws_iam_role_policy" "lambda_transcriber_policy" {
           "sqs:GetQueueAttributes"
         ],
         Resource = aws_sqs_queue.video_transcriber_notifier.arn
+      }
+    ]
+  })
+}
+
+# --- IAM Policy for Summarizer Lambda ---
+resource "aws_iam_role_policy" "summarizer_lambda_policy" {
+  name = "summarizer-lambda-policy"
+  role = aws_iam_role.summarizer_lambda_exec_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [
+      {
+        Effect = "Allow",
+        Action = [
+          "logs:CreateLogGroup",
+          "logs:CreateLogStream",
+          "logs:PutLogEvents"
+        ],
+        Resource = "arn:aws:logs:*:*:*"
+      },
+      {
+        Effect = "Allow",
+        Action = [
+          "s3:GetObject",
+          "s3:PutObject"
+        ],
+        Resource = [
+          "arn:aws:s3:::${var.intermediate_bucket_name}/*",
+          "arn:aws:s3:::${var.output_bucket_name}/*"
+        ]
       }
     ]
   })
